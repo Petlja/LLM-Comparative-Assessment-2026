@@ -1,0 +1,36 @@
+[project]
+name = "llm-comparative-assessment-2026"
+version = "0.1.0"
+description = "Test cases, survey definition, responses, and results for the 2026 LLM comparative assessment round"
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "click",
+    "pyyaml",
+    "plct-llm-compare",
+]
+
+[project.scripts]
+llmcmp = "llm_assessment_2026.llmcmp:main"
+
+[dependency-groups]
+dev = ["pytest"]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+plct-llm-compare = { path = "../AI-Assistant-LLM-Compare", editable = true }
+
+[tool.hatch.build.targets.sdist]
+include = ["src/llm_assessment_2026"]
+
+[tool.hatch.build.targets.wheel]
+include = ["src/llm_assessment_2026"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/llm_assessment_2026" = "llm_assessment_2026"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
