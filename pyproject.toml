@@ -8,6 +8,7 @@ dependencies = [
     "click",
     "pyyaml",
     "plct-llm-compare",
+    "simple-survey @ git+https://github.com/Petlja/simple-survey.git@v0.1.2",
 ]
 
 [project.scripts]
@@ -18,6 +19,9 @@ dev = ["pytest"]
 
 [tool.uv]
 package = true
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.uv.sources]
 plct-llm-compare = { path = "../AI-Assistant-LLM-Compare", editable = true }

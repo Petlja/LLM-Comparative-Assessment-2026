@@ -45,10 +45,11 @@ do not belong in the shared tooling.
 4.  Run inference for each model you want to compare, using commands like:
 
     ```bash
-    plcmp inference -m gpt-4o
-    plcmp inference -m gpt-4o --take 2
     plcmp inference -m Qwen/Qwen3-14B
+    plcmp inference -m Qwen3-14B-t7-sft
     plcmp inference -m Qwen/Qwen3-32B
+    plcmp inference -m gpt-5.2
+    plcmp inference -m nvidia/Llama-3.3-70B-Instruct-FP8
     ```
 
 5.  Run judge comparison:
@@ -61,6 +62,11 @@ do not belong in the shared tooling.
 6.  Generate the survey definition from the inference outputs:
     ```bash
     uv run llmcmp survey -o eval/output -s survey/survey.json
+    ```
+
+7.  Preview the generated survey locally:
+    ```bash
+    uv run survey-preview eval/output/survey.json
     ```
 
 Generated artifacts under `eval/output` are not tracked; the survey definition under
