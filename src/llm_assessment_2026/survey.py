@@ -7,6 +7,8 @@ from pathlib import Path
 import click
 from plct_llm_compare.models import TestCaseResponce
 
+OUTPUT_DIR = "eval/output"
+
 MATRIX_QUESTION = {
     "type": "matrix",
     "isRequired": True,
@@ -126,9 +128,9 @@ def _build_rating_page(
     }
 
 
-def do_survey(output_dir: str, survey_file: str) -> None:
-    """Scan output_dir for *.html files and generate the survey definition."""
-    output_path = Path(output_dir)
+def do_survey(survey_file: str) -> None:
+    """Scan the inference output directory for *.html files and generate the survey definition."""
+    output_path = Path(OUTPUT_DIR)
     html_files = sorted(output_path.glob("*.html"))
 
     if not html_files:

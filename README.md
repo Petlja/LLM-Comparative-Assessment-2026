@@ -61,7 +61,7 @@ do not belong in the shared tooling.
 
 6.  Generate the survey definition from the inference outputs:
     ```bash
-    uv run llmcmp survey -o eval/output -s survey/survey.json
+    uv run llmcmp survey
     ```
 
 7.  Preview the generated survey locally:
@@ -71,6 +71,12 @@ do not belong in the shared tooling.
 
 Generated artifacts under `eval/output` are not tracked; the survey definition under
 `survey/` and the results kept for the record are committed.
+
+## Documentation
+
+Deeper project documentation lives in [`docs/`](docs/). Start with the
+[codebase overview](docs/overview.md). AI assistants should also read
+[`AGENTS.md`](AGENTS.md).
 
 ## Status
 
