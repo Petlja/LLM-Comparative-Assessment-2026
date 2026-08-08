@@ -34,22 +34,15 @@ def check_cases(cases: str) -> None:
 
 @main.command()
 @click.option(
-    "--output-dir",
-    "-o",
-    default="eval/output",
-    type=click.Path(exists=True, file_okay=False),
-    help="Path to the output directory with HTML and JSON files.",
-)
-@click.option(
     "--survey-file",
     "-s",
-    default="survey/survey.json",
+    default="eval/output/survey.json",
     type=click.Path(dir_okay=False),
     help="Path of the generated survey definition.",
 )
-def survey(output_dir: str, survey_file: str) -> None:
+def survey(survey_file: str) -> None:
     """Generate the SurveyJS survey definition from inference outputs."""
-    do_survey(output_dir, survey_file)
+    do_survey(survey_file)
 
 
 if __name__ == "__main__":
