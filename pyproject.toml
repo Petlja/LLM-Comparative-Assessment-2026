@@ -8,7 +8,7 @@ dependencies = [
     "click",
     "pyyaml",
     "plct-llm-compare",
-    "simple-survey @ git+https://github.com/Petlja/simple-survey.git@v0.1.2",
+    "simple-survey @ git+https://github.com/Petlja/simple-survey.git@v0.1.4",
 ]
 
 [project.scripts]

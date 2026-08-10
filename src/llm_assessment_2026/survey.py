@@ -9,122 +9,213 @@ from plct_llm_compare.models import TestCaseResponce
 
 OUTPUT_DIR = "eval/output"
 
-MATRIX_QUESTION = {
-    "type": "matrix",
-    "isRequired": True,
-    "isAllRowRequired": True,
-    "title": "U kojoj meri se slažeš sa sledećim tvrđenjima",
-    "columns": [
-        {"value": 5, "text": "Potpuno se slažem"},
-        {"value": 4, "text": "Slažem se"},
-        {"value": 3, "text": "Neodlučan sam"},
-        {"value": 2, "text": "Ne slažem se"},
-        {"value": 1, "text": "Uopšte se ne slažem"},
-    ],
-    "rows": [
-        {"value": "dom", "text": "Odgovor je koristan za nastavnu praksu"},
-        {"value": "edu", "text": "Izbor termina u odgovoru je adekvatan"},
-        {"value": "gra", "text": "Srpski jezik u odgovoru zvuči prirodno"},
-        {"value": "srp", "text": "Bez izmena ili nakon menjih korekcija, jezik odgovora je dovoljno dobar"},
-    ],
-}
+RANKING_CATEGORIES = [
+    ("q1", "Korisnost za nastavnu praksu"),
+    ("q2", "Izbor termina"),
+    ("q3", "Prirodnost srpskog jezika"),
+    ("q4", "Ukupan utisak"),
+]
+
+HORIZONTAL_DRAG_HANDLER = (
+    "window.__llmRankingPointerX=event.clientX;"
+    "if(!window.__llmRankingPointerTracker){"
+    "document.addEventListener('pointermove',function(pointerEvent){"
+    "window.__llmRankingPointerX=pointerEvent.clientX;"
+    "},true);"
+    "window.__llmRankingPointerTracker=true;"
+    "}"
+    "var questionName=this.closest('[data-name]').dataset.name;"
+    "var dragDrop=survey.getQuestionByName(questionName).dragDropRankingChoices;"
+    "if(!dragDrop.__llmHorizontalHitTest){"
+    "dragDrop.calculateIsBottom=function(_clientY,dropTargetNode){"
+    "var rect=dropTargetNode.getBoundingClientRect();"
+    "return window.__llmRankingPointerX>=rect.left+rect.width/2;"
+    "};"
+    "dragDrop.__llmHorizontalHitTest=true;"
+    "}"
+)
 
 
-def _build_page(page_index: int, meta: TestCaseResponce, model_alias: str, html_content: str) -> dict:
-    """Build a single SurveyJS page from metadata and HTML content."""
-    page_name = f"page{page_index}"
-    title_html = (
-        f'<h4>(LLM {model_alias}) U kontekstu lekcije '
-        f'<a href="{meta.activity_url}" target="_blank">{meta.activity_desc}</a> '
-        f'AI asistentu je zadat prompt:</h4>'
-        f'<h3>{meta.prompt}</h3>'
+def _build_response_viewer(
+    page_name: str,
+    question_name: str,
+    entries: list[tuple[TestCaseResponce, str, str]],
+) -> tuple[dict, list[dict[str, str]]]:
+    """Build draggable ranking tabs and their scrollable response panels."""
+    viewer_id = f"{page_name}_responseViewer"
+    model_choices = []
+    tab_panels = []
+
+    for model_meta, alias, html_content in entries:
+        tab_id = f"{page_name}_llm{alias}_tab"
+        panel_id = f"{page_name}_llm{alias}_panel"
+        model_choices.append(
+            {
+                "value": model_meta.model.split("/")[-1],
+                "text": (
+                    f'<input class="llm-rank-tab-input" type="radio" '
+                    f'name="{page_name}_modelTabs" id="{tab_id}" '
+                    f'aria-label="LLM {alias}">'
+                    f'<span class="llm-rank-tab-label" '
+                    f'aria-controls="{panel_id}" '
+                    f'onpointerdown="{HORIZONTAL_DRAG_HANDLER}" '
+                    f'onclick="this.previousElementSibling.checked = true">'
+                    f'LLM {alias}</span>'
+                ),
+            }
+        )
+        tab_panels.append(
+            f'<section class="llm-tab-panel llm-tab-panel-{alias}" id="{panel_id}" '
+            f'aria-label="Odgovor LLM {alias}">{html_content}</section>'
+        )
+
+    active_panel_rules = "\n".join(
+        f"body:has(#{page_name}_llm{alias}_tab:checked) #{page_name}_llm{alias}_panel "
+        "{ display: block; }"
+        for _, alias, _ in entries
     )
-    question_name_prefix = f"{meta.case_key}__{meta.take}__{meta.model.split('/')[-1]}"
-    return {
-        "name": page_name,
-        "elements": [
-            {
-                "type": "html",
-                "name": f"{page_name}_title",
-                "html": title_html,
-            },
-            {
-                "type": "panel",
-                "name": f"{page_name}_aiPanel",
-                "title": "Odgovor AI asistenta",
-                "elements": [
-                    {
-                        "type": "html",
-                        "name": f"{page_name}_response",
-                        "html": html_content,
-                    }
-                ],
-            },
-            {
-                **MATRIX_QUESTION,
-                "name": f"{question_name_prefix}__q1",
-            },
-            {
-                "type": "comment",
-                "name": f"{question_name_prefix}__q2",
-                "title": "Šta uočavate da bi trebalo ispravnije jezički formulisati?",
-            },
-            {
-                "type": "comment",
-                "name": f"{question_name_prefix}__q3",
-                "title": "Vaš ukupan utisak o jeziku odgovora",
-            },
-        ],
-    }
+    initial_panel_rules = "\n".join(
+        f'body:not(:has(input[name="{page_name}_modelTabs"]:checked))'
+        f':has([data-name="{question_name}"] .sv-ranking-item:first-child '
+        f'#{page_name}_llm{alias}_tab) #{page_name}_llm{alias}_panel '
+        "{ display: block; }"
+        for _, alias, _ in entries
+    )
+    viewer_html = f"""
+        <style>
+            .sd-body.sd-body--static {{ max-width: 1280px; }}
+            [data-name="{question_name}"] .sv-ranking {{
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }}
+            [data-name="{question_name}"] .sv-ranking-item {{
+                flex: 1 1 9rem;
+                width: auto !important;
+                min-width: 8rem;
+            }}
+            [data-name="{question_name}"] .sv-ranking-item > div,
+            [data-name="{question_name}"] .sv-ranking-item__content {{ height: 100%; }}
+            [data-name="{question_name}"] .sv-ranking-item__content {{
+                position: relative;
+                box-sizing: border-box;
+                border: 1px solid #c7ced8;
+                background: #eef1f5;
+                color: #263238;
+            }}
+            [data-name="{question_name}"] .sv-ranking-item:has(.llm-rank-tab-input:checked)
+                .sv-ranking-item__content {{
+                border-color: #167d6a;
+                background: #167d6a;
+                color: #fff;
+            }}
+            body:not(:has(input[name="{page_name}_modelTabs"]:checked))
+                [data-name="{question_name}"] .sv-ranking-item:first-child
+                .sv-ranking-item__content {{
+                border-color: #167d6a;
+                background: #167d6a;
+                color: #fff;
+            }}
+            [data-name="{question_name}"] .sv-ranking-item__text {{ flex: 1; }}
+            .llm-rank-tab-input {{
+                position: absolute;
+                width: 1px;
+                height: 1px;
+                opacity: 0;
+            }}
+            .llm-rank-tab-label {{
+                position: absolute;
+                inset: 0;
+                z-index: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 2.5rem;
+                box-sizing: border-box;
+                padding: 0 0.75rem 0 4.5rem;
+                font-weight: 600;
+                text-align: center;
+                cursor: pointer;
+            }}
+            .sv-ranking-item:focus-visible .llm-rank-tab-label {{
+                outline: 3px solid #f0b429;
+                outline-offset: 2px;
+            }}
+            #{viewer_id} {{ margin: 0 0 1.5rem; }}
+            #{viewer_id} .llm-tab-panel {{
+                display: none;
+                box-sizing: border-box;
+                padding: 1rem 1.25rem;
+                overflow-x: auto;
+                border: 1px solid #c7ced8;
+                background: #fff;
+            }}
+            #{viewer_id} .llm-tab-panel img {{ max-width: 100%; height: auto; }}
+            #{viewer_id} .llm-tab-panel pre {{ overflow-x: auto; }}
+            {initial_panel_rules}
+            {active_panel_rules}
+        </style>
+        <div id="{viewer_id}" class="llm-response-viewer">{''.join(tab_panels)}</div>
+    """
+    return (
+        {
+            "type": "html",
+            "name": f"{page_name}_responses",
+            "html": viewer_html,
+        },
+        model_choices,
+    )
 
 
-def _build_rating_page(
+def _build_ranking_page(
     page_index: int,
     case_key: str,
-    meta: TestCaseResponce,
-    model_aliases_in_group: list[tuple[str, str]],
+    entries: list[tuple[TestCaseResponce, str, str]],
+    question_id: str,
+    category_title: str,
 ) -> dict:
-    """Build a SurveyJS comparison/rating page for a case_key group."""
+    """Build one SurveyJS page with draggable response tabs for one category."""
     page_name = f"page{page_index}"
-    question_name_prefix = f"{case_key}__0__-"
+    question_name = f"{case_key}__0__-__{question_id}"
+    meta = entries[0][0]
     title_html = (
         f'<h4>Poređenje odgovora u kontekstu lekcije '
         f'<a href="{meta.activity_url}" target="_blank">{meta.activity_desc}</a></h4>'
         f'<h3>Prompt: {meta.prompt}</h3>'
     )
-    rating_columns = [{"value": "N", "text": "Nema velike razlike"}] + [
-        {"value": model.split("/")[-1], "text": f"Bolji je LLM {alias}"}
-        for alias, model in model_aliases_in_group
+    response_viewer, model_choices = _build_response_viewer(page_name, question_name, entries)
+    elements = [
+        {
+            "type": "html",
+            "name": f"{page_name}_title",
+            "html": title_html,
+        },
+        {
+            "type": "ranking",
+            "name": question_name,
+            "title": category_title,
+            "description": (
+                "Prevucite LLM kartice da ih rangirate od najboljeg ka najlošijem. "
+                "Kliknite naziv modela da prikažete njegov odgovor."
+            ),
+            "isRequired": True,
+            "selectToRankEnabled": False,
+            "choicesOrder": "random",
+            "choices": model_choices,
+        },
+        response_viewer,
     ]
-    return {
-        "name": page_name,
-        "elements": [
-            {
-                "type": "html",
-                "name": f"{page_name}_title",
-                "html": title_html,
-            },
-            {
-                "type": "matrix",
-                "name": f"{question_name_prefix}__q4",
-                "isRequired": True,
-                "isAllRowRequired": True,
-                "title": "Koji LLM je dao bolji odgovor u pogledu sledećeg?",
-                "description": "Možete se vratiti da pogledate odgovore na prethodnim stranicama da se podsetite.",
-                "columns": rating_columns,
-                "rows": [
-                    {"value": "dom", "text": "Korisnost za nastavnu praksu"},
-                    {"value": "edu", "text": "Izbor termina"},
-                    {"value": "gra", "text": "Prirodnost srpskog jezika"},
-                    {"value": "overall", "text": "Ukupan utisak"},
-                ],
-            },
+    if question_id == RANKING_CATEGORIES[-1][0]:
+        elements.append(
             {
                 "type": "comment",
-                "name": f"{question_name_prefix}__q5",
+                "name": f"{case_key}__0__-__q5",
                 "title": "Šta smatrate da je bolje ili lošije u odgovorima jednog ili drugog LLM-a?",
-            },
-        ],
+            }
+        )
+    return {
+        "name": page_name,
+        "elements": elements,
     }
 
 
@@ -163,19 +254,20 @@ def do_survey(survey_file: str) -> None:
         case_groups.setdefault(meta.case_key, []).append((meta, model_alias, html_content))
         click.echo(f"  Added {html_file.name} to group {meta.case_key}")
 
-    # Build pages: for each case_key, emit model response pages then a rating page
+    # Build one page per case and ranking category.
     pages = []
     page_idx = 1
     for case_key, entries in case_groups.items():
-        aliases_in_group: list[tuple[str, str]] = []
-        for meta, model_alias, html_content in entries:
-            pages.append(_build_page(page_idx, meta, model_alias, html_content))
-            aliases_in_group.append((model_alias, meta.model))
-            page_idx += 1
-
-        if len(aliases_in_group) > 1:
-            first_meta = entries[0][0]
-            pages.append(_build_rating_page(page_idx, case_key, first_meta, aliases_in_group))
+        for question_id, category_title in RANKING_CATEGORIES:
+            pages.append(
+                _build_ranking_page(
+                    page_idx,
+                    case_key,
+                    entries,
+                    question_id,
+                    category_title,
+                )
+            )
             page_idx += 1
 
     survey = {
