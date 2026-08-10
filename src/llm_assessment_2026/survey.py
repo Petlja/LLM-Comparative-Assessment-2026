@@ -12,8 +12,9 @@ from .comparison_design import (
     ComparisonAssignment,
     build_group_assignments,
     group_visibility_expression,
+    order_models_for_presentation,
 )
-from .survey_presentation import COMPLETED_HTML, build_page_title, build_ranking_presentation
+from .survey_presentation import COMPLETED_HTML, build_page_title, build_response_comparison
 
 OUTPUT_DIR = "eval/output"
 
@@ -24,50 +25,79 @@ RANKING_CATEGORIES = [
     ("q4", "Ukupan utisak"),
 ]
 
-def _build_ranking_page(
+def _build_comparison_page(
     page_index: int,
     case_key: str,
     entries: list[tuple[TestCaseResponce, str, str]],
     group: int,
-    question_id: str,
-    category_title: str,
 ) -> dict:
-    """Build one SurveyJS page with draggable response tabs for one category."""
+    """Build one page for comparing a model triplet across all categories."""
     page_name = f"page{page_index}_group{group:02d}"
-    question_name = f"{case_key}__0__group-{group:02d}__{question_id}"
+    question_name = f"{case_key}__0__group-{group:02d}__ranking"
     meta = entries[0][0]
-    ranking_presentation, model_choices = build_ranking_presentation(
-        page_name, question_name, entries
-    )
+    model_choices = [
+        {"value": model_meta.model, "text": f"LLM {alias}"}
+        for model_meta, alias, _ in entries
+    ]
+    distinct_choice_expressions = [
+        (
+            f"({{{question_name}.{question_id}.best}} empty or "
+            f"{{{question_name}.{question_id}.worst}} empty or "
+            f"{{{question_name}.{question_id}.best}} != "
+            f"{{{question_name}.{question_id}.worst}})"
+        )
+        for question_id, _ in RANKING_CATEGORIES
+    ]
     elements = [
         {
             "type": "html",
             "name": f"{page_name}_title",
             "html": build_page_title(meta),
         },
+        build_response_comparison(page_name, entries),
         {
-            "type": "ranking",
+            "type": "matrixdropdown",
             "name": question_name,
-            "title": category_title,
+            "title": "Poređenje odgovora",
             "description": (
-                "Prevucite LLM kartice da ih rangirate od najboljeg ka najlošijem. "
-                "Kliknite naziv modela da prikažete njegov odgovor."
+                "Za svaki kriterijum izaberite najbolji i najlošiji odgovor. "
+                "Preostali odgovor se smatra srednje rangiranim."
             ),
             "isRequired": True,
-            "selectToRankEnabled": False,
-            "choicesOrder": "random",
-            "choices": model_choices,
+            "rows": [
+                {"value": question_id, "text": category_title}
+                for question_id, category_title in RANKING_CATEGORIES
+            ],
+            "columns": [
+                {
+                    "name": "best",
+                    "title": "Najbolji",
+                    "cellType": "dropdown",
+                    "isRequired": True,
+                    "choices": model_choices,
+                },
+                {
+                    "name": "worst",
+                    "title": "Najlošiji",
+                    "cellType": "dropdown",
+                    "isRequired": True,
+                    "choices": model_choices,
+                },
+            ],
+            "validators": [
+                {
+                    "type": "expression",
+                    "expression": " and ".join(distinct_choice_expressions),
+                    "text": "Najbolji i najlošiji odgovor moraju biti različiti.",
+                }
+            ],
         },
-        ranking_presentation,
+        {
+            "type": "comment",
+            "name": f"{case_key}__0__group-{group:02d}__q5",
+            "title": "Šta smatrate da je bolje ili lošije u odgovorima jednog ili drugog LLM-a?",
+        },
     ]
-    if question_id == RANKING_CATEGORIES[-1][0]:
-        elements.append(
-            {
-                "type": "comment",
-                "name": f"{case_key}__0__group-{group:02d}__q5",
-                "title": "Šta smatrate da je bolje ili lošije u odgovorima jednog ili drugog LLM-a?",
-            }
-        )
     return {
         "name": page_name,
         "visibleIf": group_visibility_expression(group),
@@ -105,7 +135,7 @@ def _entries_for_assignment(
     entries_by_model = {meta.model: (meta, html_content) for meta, _, html_content in entries}
     return [
         (entries_by_model[model_id][0], chr(ord("A") + index), entries_by_model[model_id][1])
-        for index, model_id in enumerate(assignment.models)
+        for index, model_id in enumerate(order_models_for_presentation(assignment))
     ]
 
 
@@ -150,23 +180,20 @@ def do_survey(survey_file: str) -> None:
     model_ids = _get_shared_model_ids(case_groups)
     assignments = build_group_assignments(case_groups, model_ids)
 
-    # Build one group-specific page per case and ranking category.
+    # Build one group-specific page per case.
     pages = []
     page_idx = 1
     for assignment in assignments:
         entries = _entries_for_assignment(case_groups[assignment.case_key], assignment)
-        for question_id, category_title in RANKING_CATEGORIES:
-            pages.append(
-                _build_ranking_page(
-                    page_idx,
-                    assignment.case_key,
-                    entries,
-                    assignment.group,
-                    question_id,
-                    category_title,
-                )
+        pages.append(
+            _build_comparison_page(
+                page_idx,
+                assignment.case_key,
+                entries,
+                assignment.group,
             )
-            page_idx += 1
+        )
+        page_idx += 1
 
     survey = {
         "title": "Upitnik o odgovorima AI Asistenta",
@@ -176,6 +203,7 @@ def do_survey(survey_file: str) -> None:
         ),
         "pages": pages,
         "showProgressBar": "top",
+        "checkErrorsMode": "onValueChanged",
         "completedHtml": COMPLETED_HTML,
     }
 

@@ -4,9 +4,11 @@ from itertools import combinations
 import pytest
 
 from llm_assessment_2026.comparison_design import (
+    ComparisonAssignment,
     build_group_assignments,
     build_model_triplets,
     group_visibility_expression,
+    order_models_for_presentation,
 )
 
 
@@ -47,6 +49,19 @@ def test_triplets_rotate_between_cases_within_a_group() -> None:
 
 def test_group_visibility_uses_simple_survey_numeric_variable() -> None:
     assert group_visibility_expression(3) == "{group} = 3"
+
+
+def test_presentation_order_is_reproducible_and_preserves_triplet() -> None:
+    assignment = ComparisonAssignment(
+        case_key="case-1",
+        group=3,
+        models=("model-a", "model-b", "model-c"),
+    )
+
+    first_order = order_models_for_presentation(assignment)
+
+    assert order_models_for_presentation(assignment) == first_order
+    assert set(first_order) == set(assignment.models)
 
 
 @pytest.mark.parametrize(

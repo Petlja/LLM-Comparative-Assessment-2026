@@ -68,7 +68,9 @@ do not belong in the shared tooling.
         rotated triplet per test case to each participant group. With five models,
         this produces 10 groups. Configure each participant in Simple Survey with a
         numeric `group` variable from `1` through `10`; SurveyJS uses that variable
-        to show only the pages assigned to the participant. For example:
+        to show only the pages assigned to the participant. Each visible page shows
+        three responses side by side and collects the best and worst model for all
+        four assessment criteria in one matrix. For example:
 
         ```json
         {

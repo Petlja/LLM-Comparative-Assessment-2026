@@ -1,6 +1,7 @@
 """Construct balanced model-triplet assignments for survey participant groups."""
 
 from dataclasses import dataclass
+from hashlib import sha256
 from itertools import combinations
 from typing import Iterable
 
@@ -55,6 +56,20 @@ def build_group_assignments(
                 )
             )
     return tuple(assignments)
+
+
+def order_models_for_presentation(
+    assignment: ComparisonAssignment,
+) -> tuple[str, str, str]:
+    """Return a reproducible permutation that counterbalances column positions."""
+    return tuple(
+        sorted(
+            assignment.models,
+            key=lambda model_id: sha256(
+                f"{assignment.case_key}\0{assignment.group}\0{model_id}".encode()
+            ).digest(),
+        )
+    )
 
 
 def group_visibility_expression(group: int) -> str:

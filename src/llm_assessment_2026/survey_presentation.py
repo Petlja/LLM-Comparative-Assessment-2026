@@ -1,27 +1,8 @@
-"""Render the presentation elements used by ranking survey pages."""
+"""Render the presentation elements used by model-comparison survey pages."""
 
 from plct_llm_compare.models import TestCaseResponce
 
 COMPLETED_HTML = "<h3>Hvala vam!</h3>"
-
-HORIZONTAL_DRAG_HANDLER = (
-    "window.__llmRankingPointerX=event.clientX;"
-    "if(!window.__llmRankingPointerTracker){"
-    "document.addEventListener('pointermove',function(pointerEvent){"
-    "window.__llmRankingPointerX=pointerEvent.clientX;"
-    "},true);"
-    "window.__llmRankingPointerTracker=true;"
-    "}"
-    "var questionName=this.closest('[data-name]').dataset.name;"
-    "var dragDrop=survey.getQuestionByName(questionName).dragDropRankingChoices;"
-    "if(!dragDrop.__llmHorizontalHitTest){"
-    "dragDrop.calculateIsBottom=function(_clientY,dropTargetNode){"
-    "var rect=dropTargetNode.getBoundingClientRect();"
-    "return window.__llmRankingPointerX>=rect.left+rect.width/2;"
-    "};"
-    "dragDrop.__llmHorizontalHitTest=true;"
-    "}"
-)
 
 
 def build_page_title(meta: TestCaseResponce) -> str:
@@ -33,132 +14,112 @@ def build_page_title(meta: TestCaseResponce) -> str:
     )
 
 
-def build_ranking_presentation(
+def build_response_comparison(
     page_name: str,
-    question_name: str,
     entries: list[tuple[TestCaseResponce, str, str]],
-) -> tuple[dict, list[dict[str, str]]]:
-    """Build draggable ranking tabs and their scrollable model-answer panels."""
-    presentation_id = f"{page_name}_rankingPresentation"
-    model_choices = []
+) -> dict:
+    """Build three response columns that collapse to tabs on narrow screens."""
+    presentation_id = f"{page_name}_responseComparison"
+    tab_controls = []
     tab_panels = []
 
-    for model_meta, alias, html_content in entries:
+    for index, (_, alias, html_content) in enumerate(entries):
         tab_id = f"{page_name}_llm{alias}_tab"
         panel_id = f"{page_name}_llm{alias}_panel"
-        model_choices.append(
-            {
-                "value": model_meta.model,
-                "text": (
-                    f'<input class="llm-rank-tab-input" type="radio" '
-                    f'name="{page_name}_modelTabs" id="{tab_id}" '
-                    f'aria-label="LLM {alias}">'
-                    f'<span class="llm-rank-tab-label" '
-                    f'aria-controls="{panel_id}" '
-                    f'onpointerdown="{HORIZONTAL_DRAG_HANDLER}" '
-                    f'onclick="this.previousElementSibling.checked = true">'
-                    f'LLM {alias}</span>'
-                ),
-            }
+        checked = " checked" if index == 0 else ""
+        tab_controls.append(
+            f'<input class="llm-response-tab-input" type="radio" '
+            f'name="{page_name}_modelTabs" id="{tab_id}"{checked}>'
+            f'<label class="llm-response-tab-label" for="{tab_id}" '
+            f'aria-controls="{panel_id}">LLM {alias}</label>'
         )
         tab_panels.append(
-            f'<section class="llm-tab-panel llm-tab-panel-{alias}" id="{panel_id}" '
-            f'aria-label="Odgovor LLM {alias}">{html_content}</section>'
+            f'<section class="llm-response-panel" id="{panel_id}" '
+            f'aria-label="Odgovor LLM {alias}">'
+            f'<h4 class="llm-response-heading">LLM {alias}</h4>'
+            f'<div class="llm-response-content">{html_content}</div></section>'
         )
 
-    active_panel_rules = "\n".join(
+    mobile_active_panel_rules = "\n".join(
         f"body:has(#{page_name}_llm{alias}_tab:checked) #{page_name}_llm{alias}_panel "
-        "{ display: block; }"
-        for _, alias, _ in entries
-    )
-    initial_panel_rules = "\n".join(
-        f'body:not(:has(input[name="{page_name}_modelTabs"]:checked))'
-        f':has([data-name="{question_name}"] .sv-ranking-item:first-child '
-        f'#{page_name}_llm{alias}_tab) #{page_name}_llm{alias}_panel '
         "{ display: block; }"
         for _, alias, _ in entries
     )
     presentation_html = f"""
         <style>
             .sd-body.sd-body--static {{ max-width: 1280px; }}
-            [data-name="{question_name}"] .sv-ranking {{
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.5rem;
-            }}
-            [data-name="{question_name}"] .sv-ranking-item {{
-                flex: 1 1 9rem;
-                width: auto !important;
-                min-width: 8rem;
-            }}
-            [data-name="{question_name}"] .sv-ranking-item > div,
-            [data-name="{question_name}"] .sv-ranking-item__content {{ height: 100%; }}
-            [data-name="{question_name}"] .sv-ranking-item__content {{
-                position: relative;
-                box-sizing: border-box;
-                border: 1px solid #c7ced8;
-                background: #eef1f5;
-                color: #263238;
-            }}
-            [data-name="{question_name}"] .sv-ranking-item:has(.llm-rank-tab-input:checked)
-                .sv-ranking-item__content {{
-                border-color: #167d6a;
-                background: #167d6a;
-                color: #fff;
-            }}
-            body:not(:has(input[name="{page_name}_modelTabs"]:checked))
-                [data-name="{question_name}"] .sv-ranking-item:first-child
-                .sv-ranking-item__content {{
-                border-color: #167d6a;
-                background: #167d6a;
-                color: #fff;
-            }}
-            [data-name="{question_name}"] .sv-ranking-item__text {{ flex: 1; }}
-            .llm-rank-tab-input {{
+            #{presentation_id} {{ margin: 0 0 1.5rem; }}
+            #{presentation_id} .llm-response-tabs {{ display: none; }}
+            #{presentation_id} .llm-response-tab-input {{
                 position: absolute;
                 width: 1px;
                 height: 1px;
                 opacity: 0;
             }}
-            .llm-rank-tab-label {{
-                position: absolute;
-                inset: 0;
-                z-index: 1;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                min-height: 2.5rem;
-                box-sizing: border-box;
-                padding: 0 0.75rem 0 4.5rem;
-                font-weight: 600;
-                text-align: center;
-                cursor: pointer;
+            #{presentation_id} .llm-response-grid {{
+                display: grid;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+                gap: 0.75rem;
+                align-items: start;
             }}
-            .sv-ranking-item:focus-visible .llm-rank-tab-label {{
-                outline: 3px solid #f0b429;
-                outline-offset: 2px;
-            }}
-            #{presentation_id} {{ margin: 0 0 1.5rem; }}
-            #{presentation_id} .llm-tab-panel {{
-                display: none;
+            #{presentation_id} .llm-response-panel {{
+                min-width: 0;
+                max-height: 65vh;
                 box-sizing: border-box;
-                padding: 1rem 1.25rem;
-                overflow-x: auto;
                 border: 1px solid #c7ced8;
                 background: #fff;
+                overflow: auto;
             }}
-            #{presentation_id} .llm-tab-panel img {{ max-width: 100%; height: auto; }}
-            #{presentation_id} .llm-tab-panel pre {{ overflow-x: auto; }}
-            {initial_panel_rules}
-            {active_panel_rules}
+            #{presentation_id} .llm-response-heading {{
+                position: sticky;
+                top: 0;
+                z-index: 1;
+                margin: 0;
+                padding: 0.75rem 1rem;
+                border-bottom: 1px solid #c7ced8;
+                background: #eef1f5;
+            }}
+            #{presentation_id} .llm-response-content {{ padding: 0.25rem 1rem 1rem; }}
+            #{presentation_id} img {{ max-width: 100%; height: auto; }}
+            #{presentation_id} pre {{ overflow-x: auto; }}
+            @media (max-width: 900px) {{
+                #{presentation_id} .llm-response-tabs {{
+                    display: grid;
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                    gap: 0.375rem;
+                    margin-bottom: 0.5rem;
+                }}
+                #{presentation_id} .llm-response-tab-label {{
+                    padding: 0.625rem;
+                    border: 1px solid #c7ced8;
+                    background: #eef1f5;
+                    font-weight: 600;
+                    text-align: center;
+                    cursor: pointer;
+                }}
+                #{presentation_id} .llm-response-tab-input:checked +
+                    .llm-response-tab-label {{
+                    border-color: #167d6a;
+                    background: #167d6a;
+                    color: #fff;
+                }}
+                #{presentation_id} .llm-response-tab-input:focus-visible +
+                    .llm-response-tab-label {{
+                    outline: 3px solid #f0b429;
+                    outline-offset: 2px;
+                }}
+                #{presentation_id} .llm-response-grid {{ display: block; }}
+                #{presentation_id} .llm-response-panel {{ display: none; }}
+                {mobile_active_panel_rules}
+            }}
         </style>
-        <div id="{presentation_id}" class="llm-ranking-presentation">{''.join(tab_panels)}</div>
+        <div id="{presentation_id}" class="llm-response-comparison">
+            <div class="llm-response-tabs">{''.join(tab_controls)}</div>
+            <div class="llm-response-grid">{''.join(tab_panels)}</div>
+        </div>
     """
-    return (
-        {
-            "type": "html",
-            "name": f"{page_name}_rankingPresentation",
-            "html": presentation_html,
-        },
-        model_choices,
-    )
+    return {
+        "type": "html",
+        "name": f"{page_name}_responseComparison",
+        "html": presentation_html,
+    }
