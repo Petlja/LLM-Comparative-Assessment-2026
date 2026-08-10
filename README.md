@@ -64,6 +64,20 @@ do not belong in the shared tooling.
     uv run llmcmp survey
     ```
 
+        The generator constructs every three-model combination and assigns one
+        rotated triplet per test case to each participant group. With five models,
+        this produces 10 groups. Configure each participant in Simple Survey with a
+        numeric `group` variable from `1` through `10`; SurveyJS uses that variable
+        to show only the pages assigned to the participant. For example:
+
+        ```json
+        {
+            "variables": {
+                "group": 1
+            }
+        }
+        ```
+
 7.  Preview the generated survey locally:
     ```bash
     uv run survey-preview eval/output/survey.json
