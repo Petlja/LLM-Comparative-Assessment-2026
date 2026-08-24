@@ -52,7 +52,7 @@ do not belong in the shared tooling.
     plcmp inference -m nvidia/Llama-3.3-70B-Instruct-FP8
     ```
 
-5.  Run judge comparison:
+5.  Run judge comparison (optional):
 
 
     ```bash

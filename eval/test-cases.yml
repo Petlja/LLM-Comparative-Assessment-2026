@@ -1,33 +1,495 @@
-- case_key: A1
-  course_key: 6_razred_IKT_DigitalnaPismenost
-  activity_key: 0cca3ec1-bd01-4769-b759-8a1e7e424bdf
-  activity_url: https://petlja.org/sr-Latn-RS/kurs/353/14/6912
-  activity_desc: Информатика 6 / Дититална писменост / Интернет сервиси
+- case_key: TC-001
+  use_case: Lesson planning
+  inclusive: true
+  course_key: specit_baze3
+  activity_key: 8ec46790-d6fc-4e53-8b15-9eea01ef9b02
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/6/6691
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Пример моделовања - факултет'
   prompt: |
-    Направи ми две групе од по три питања, свако питање са понуђених 4 одговора. 
-    Означи шта су тачни одговори са објашњењем.
-- case_key: A2
+    Направи план часа за ову лекцију на 45 минута. Укључи прилагођавања за ученика са тешкоћама у учењу: кратка упутства, рад у мањим корацима и алтернативни начин учешћа, без снижавања исхода часа.
+- case_key: TC-002
+  use_case: Difficulties in lessons and tasks
+  inclusive: true
   course_key: kurs-sesti
-  activity_key: ee8759b0-069a-40da-87fb-b9518e39fa59
-  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/7/5577
-  activity_desc: Информатика 6 / Python / Променљиве - имена придружена подацима
+  activity_key: bbb08795-16b5-4cd1-be94-932d7225a44c
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/16/5626
+  activity_desc: 'Програмирање уз језик Python / 16.1. Дебаговање на рачунару у програму IDLE'
   prompt: |
-    Издвој главне концепте из ове лекције. 
-    За сваки концепт дај два нивоа објашњенја: 
-    основни ниво који треба да је разумљив свим ученицима и продубљен ниво.
-- case_key: A3
+    Који делови ове лекције могу бити најтежи ученицима са тешкоћама у учењу или одржавању пажње? За сваки издвојени део предложи начин да препознам тешкоћу и кратко објашњење у јасним корацима.
+- case_key: TC-003
+  use_case: Creating examples for teaching purposes
+  inclusive: true
+  course_key: 8_razred_IKT_DigitalnaPismenost
+  activity_key: 53121acf-f5dc-4401-9479-e57420cd8935
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/482/6/5734
+  activity_desc: 'ИКТ и Дигитална писменост за осми разред / Компаративна анализа -- Стубичасти дијаграми'
+  prompt: |
+    Предложи три нова скупа података погодна за стубичасти дијаграм, која нису пример продаје воћа из лекције. За сваки наведи категорије и вредности. Један пример прилагоди ученику са тешкоћама у читању: користи кратке реченице, јасне кораке и табеларни приказ.
+- case_key: TC-004
+  use_case: Creating tests and questions
+  inclusive: false
+  course_key: 5_razred_IKT_DigitalnaPismenost
+  activity_key: 80bcb63de-a535-414f-826b-41cffbfe03a4
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/354/10/6050
+  activity_desc: 'ИКТ и Дигитална писменост за пети разред / Правила понашања на интернету'
+  prompt: |
+    Дај ми пример теста од пет питања са checkbox дугмадима. За свако питање понуди три одговора, од којих је један тачан.
+- case_key: TC-005
+  use_case: Creating examples for teaching purposes
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: bb4e905a-9a5f-4360-afc7-fd1448a87030
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/7/6693
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Пример моделовања - продаја дигиталних композиција'
+  prompt: |
+    За пример продаје дигиталних композиција нацртај табеле и везе између табела.
+- case_key: TC-006
+  use_case: Assigning homework, practice tasks, and projects
+  inclusive: true
+  course_key: kurs-sedmi-pygame
+  activity_key: d1f32840-b2d1-482d-8fa3-6613906aa286
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/13/5681
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 13.2. Комбиновање гранања и петље'
+  prompt: |
+    Осмисли задатак за утврђивање комбиновања гранања и петљи у Pygame-у, са цртањем наизменично обојених облика. Прилагоди упутство ученику са тешкоћама у учењу тако што ћеш задатак поделити на кратке кораке и додати један започет пример.
+- case_key: TC-007
+  use_case: Lesson planning
+  inclusive: false
+  course_key: kurs-prog3-spec-IT
+  activity_key: a468ef7e-f29d-48a8-940f-58a1860b32a7
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7831/4/5356
+  activity_desc: 'Програмирање за трећи разред специјализованих ИТ одељења / 4.4 Представљање графова'
+  prompt: |
+    Направи план часа од 45 минута за ову лекцију, са уводном активношћу, обрадом садржаја, кратким вежбањем и завршном провером разумевања.
+- case_key: TC-008
+  use_case: Providing formative comments
+  inclusive: true
+  course_key: kurs-sesti
+  activity_key: f05e1e5e-6d88-4926-8c2e-a98223dac25a
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/9/5591
+  activity_desc: 'Програмирање уз језик Python / 9.2. Дефинисање функција'
+  prompt: |
+    Ученик са тешкоћама у учењу разумео је основну идеју лекције и тачно решио једноставне примере, али код сложенијег задатка није објаснио поступак. Напиши кратак и јасан формативни коментар: шта је добро урадио, шта треба да поправи и који је следећи достижан корак.
+- case_key: TC-009
+  use_case: Solving tasks
+  inclusive: false
+  course_key: kurs-prog3-spec-IT
+  activity_key: db7a9436-793e-4c38-915f-f588383cc0f9
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7831/4/5358
+  activity_desc: 'Програмирање за трећи разред специјализованих ИТ одељења / 4.5 Обилазак графова'
+  prompt: |
+    Дај ми теже задатке урађене у C#.
+- case_key: TC-010
+  use_case: Solving tasks
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: 7b2bd923-30a1-416d-af7f-b31d83f8ac31
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/14/6733
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / База података за продају дигиталних композиција'
+  prompt: |
+    Напиши SQL CREATE TABLE наредбе за базу продаје дигиталних композиција из лекције и објасни редослед креирања табела због страних кључева.
+- case_key: TC-011
+  use_case: Summarizing and describing a lesson
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: 76f724a8-97a5-40a0-aaef-2cc557344f6a
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/10/6708
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / База података библиотеке - преглед модела и базе'
+  prompt: |
+    Укратко опиши модел базе података библиотеке: главне табеле, њихову намену и најважније везе.
+- case_key: TC-012
+  use_case: Explaining concepts
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: 7bd669aa-9ca7-4f04-88d2-404201cfea5b
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/15/6740
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Погледи'
+  prompt: |
+    Објасни практичне примене погледа у бази података и наведи један пример из лекције.
+- case_key: TC-013
+  use_case: Assigning homework, practice tasks, and projects
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: ee2d46f5-52d4-41a9-a7d4-1f9f366d6189
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/13/6728
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Упит SELECT - употреба функција'
+  prompt: |
+    За ову лекцију ми треба још пет сличних задатака, али тако да се уз сваки задатак дода прича о томе како се у библиотеци, у реалном животу, користе резултати добијеног упита.
+- case_key: TC-014
+  use_case: Assisting in evaluating homework and project assignments
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: d31daeb6-041b-4915-8aa9-d182be89a5ea
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/12/6723
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Упит SELECT - спајање табела'
+  prompt: |
+    Ученик је за задатак из ове лекције употребио подупит, иако решење треба да садржи само селекцију, пројекцију и спајање табела. Процени да ли решење испуњава захтев, образложи процену и предложи шта наставник треба да провери пре коначне оцене.
+- case_key: TC-015
+  use_case: Difficulties in lessons and tasks
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: 8bb3c29e-ed76-4ecf-b24b-5144f0b52612
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/11/6717
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Упит SELECT - упит из једне табеле - селекција'
+  prompt: |
+    Који делови лекције о селекцији могу ученицима бити најтежи, посебно разлика између LIKE, BETWEEN, логичких оператора и провере NULL вредности? За сваки део предложи дијагностичко питање и кратко објашњење.
+- case_key: TC-016
+  use_case: Assigning homework, practice tasks, and projects
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: 1a9459b3-c618-4396-b178-e5cdf4906cdd
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/13/6730
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Упит SELECT - подупити'
+  prompt: |
+    Направи пет различитих и смислених задатака ове тежине који се решавају подупитима, користећи само операторе, агрегатне функције и спајања обрађена у лекцији.
+- case_key: TC-017
+  use_case: Creating tests and questions
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: ae3e3d8c-2f96-48df-a0a3-d0667ef585c5
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/9/6697
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Команда CREATE TABLE'
+  prompt: |
+    Припреми контролни задатак са четири различите групе за ученике и по десет питања у свакој групи. Задаци из лекције на Петљи не смеју да се понове.
+- case_key: TC-018
+  use_case: Providing formative comments
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: 18c26bf6-a30d-4dc4-80a8-23e454c6c79e
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/11/6714
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Упит SELECT - упит из једне табеле - пројекција'
+  prompt: |
+    Ученик правилно бира колоне из једне табеле, али не уме да објасни пројекцију и меша псеудониме колона са DISTINCT. Напиши подстицајан формативни коментар са једним конкретним следећим кораком.
+- case_key: TC-019
+  use_case: Explaining concepts
+  inclusive: true
+  course_key: kurs-sesti
+  activity_key: 1b469fa03-6e83-4f19-bf1b-97bff2cd9f84
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/12/5604
+  activity_desc: 'Програмирање уз језик Python / 12.1. Понављање - петља for'
+  prompt: |
+    Једноставно објасни for петљу ученику са тешкоћама у одржавању пажње. Користи кратке реченице, један конкретан пример и објашњење у највише пет корака.
+- case_key: TC-020
+  use_case: Difficulties in lessons and tasks
+  inclusive: true
+  course_key: kurs-sesti
+  activity_key: 9799de49-73c8-4b79-9b62-ad81bd792128
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/11/5599
+  activity_desc: 'Програмирање уз језик Python / 11.3. Конструкција if-elif-else'
+  prompt: |
+    Наведи најчешће грешке које ученици, укључујући ученике са тешкоћама у учењу, праве када први пут користе конструкцију if-elif-else. За сваку предложи кратко дијагностичко питање и приступачно додатно објашњење.
+- case_key: TC-021
+  use_case: Assigning homework, practice tasks, and projects
+  inclusive: false
+  course_key: kurs-sedmi-pygame
+  activity_key: a848cd14-cb6f-4b16-8b03-a1841841312c
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/12/5676
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 12.1. Употреба генератора случајних бројева'
+  prompt: |
+    Предложи примере Pygame пројеката у којима се генератор случајних бројева користи за положај, величину или боју облика.
+- case_key: TC-022
+  use_case: Creating examples for teaching purposes
+  inclusive: false
+  course_key: kurs-prog3-spec-IT
+  activity_key: 5fe604dc-3894-4da7-a788-6d9a8f2cf11b
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7831/1/5317
+  activity_desc: 'Програмирање за трећи разред специјализованих ИТ одељења / 1.3 Факторизација броја'
+  prompt: |
+    Дај ми пример примене факторизације броја у свакодневном животу. Потребни су увод у проблем, објашњење како алгоритам решава проблем и решење. Корисно је додати и графички приказ задатка.
+- case_key: TC-023
+  use_case: Explaining concepts
+  inclusive: false
+  course_key: kurs-prog3-spec-IT
+  activity_key: 23632b89-fa40-4574-aac1-35725f03908d
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7831/1/5320
+  activity_desc: 'Програмирање за трећи разред специјализованих ИТ одељења / 1.4 Највећи заједнички делилац'
+  prompt: |
+    Можеш ли да објасниш практичне примене највећег заједничког делиоца и најмањег заједничког садржаоца?
+- case_key: TC-024
+  use_case: Assisting in evaluating homework and project assignments
+  inclusive: false
+  course_key: kurs-prog3-spec-IT
+  activity_key: 2bc4072c-d0fa-47e6-a988-1c746fdac27d
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7831/1/5323
+  activity_desc: 'Програмирање за трећи разред специјализованих ИТ одељења / 1.5 Одређивање свих простих бројева до дате границе'
+  prompt: |
+    Ученик је све просте бројеве до N тражио тако што је за сваки број посебно испитивао простост, без Ератостеновог сита. Процени решење у односу на лекцију, наведи доказе и предложи питање које наставник може да постави пре коначне оцене.
+- case_key: TC-025
+  use_case: Using tools and technical settings
+  inclusive: true
+  course_key: specit_baze3
+  activity_key: ce7b4ff1-49c3-498e-b308-9d1f5e5e8ace
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/2/6674
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Модел и додатна документација'
+  prompt: |
+    Објасни како да у програму diagrams.net направим јасан ER дијаграм са ентитетима, атрибутима, примарним идентификаторима и везама, а затим запишем процедурална правила која нису на дијаграму. Упутство прилагоди ученику са тешкоћама у читању кратким нумерисаним корацима и називима контрола.
+- case_key: TC-026
+  use_case: Solving tasks
+  inclusive: true
+  course_key: kurs-prog3-spec-IT
+  activity_key: 20e1a885-79cd-4c08-a1f9-3254eaffe6d8
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7831/2/5328
+  activity_desc: 'Програмирање за трећи разред специјализованих ИТ одељења / 2.2 Поравнати правоугаоници'
+  prompt: |
+    Направи програм у C# који за два осно поравната правоугаоника утврђује да ли се секу. Затим објасни решење у кратким, нумерисаним корацима прилагођеним ученику са тешкоћама у учењу, без изостављања важних услова алгоритма.
+- case_key: TC-027
+  use_case: Difficulties in lessons and tasks
+  inclusive: false
+  course_key: 8_razred_IKT_DigitalnaPismenost
+  activity_key: ecfa3825-901d-4034-8fc3-cac6cca17a2a
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/482/13/5786
+  activity_desc: 'ИКТ и Дигитална писменост за осми разред / Будућност вештачке интелигенције и етичка питања'
+  prompt: |
+    Који делови лекције о пристрасности аутоматизованих одлука, приватности и људској контроли могу бити најтежи ученицима? За сваки предложи питање којим наставник проверава разумевање.
+- case_key: TC-028
+  use_case: Difficulties in lessons and tasks
+  inclusive: false
+  course_key: kurs-sedmi-pygame
+  activity_key: 3772cb99-eec9-4e90-8c42-8d22e4c90fc9
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/8/5659
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 8.3. Релативне координате и димензије'
+  prompt: |
+    Зашто ученици често помешају апсолутне и релативне координате? Објасни разлику на примеру слова M из лекције и предложи кратку проверу разумевања.
+- case_key: TC-029
+  use_case: Summarizing and describing a lesson
+  inclusive: true
+  course_key: 5_razred_IKT_DigitalnaPismenost
+  activity_key: 0361dac2-f4f7-41ac-afbc-7c4b9ff11377
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/354/11/6056
+  activity_desc: 'ИКТ и Дигитална писменост за пети разред / Критички приступ информацијама на интернету'
+  prompt: |
+    Напиши кратак увод или опис за ову лекцију који могу да наведем ученицима, прилагођен ученицима са тешкоћама у раду.
+- case_key: TC-030
+  use_case: Lesson planning
+  inclusive: false
+  course_key: kurs-sesti
+  activity_key: 58fb0d70-fb33-4017-929c-ff44453a2ae5
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/1/5549
+  activity_desc: 'Програмирање уз језик Python / 1.3. Бројачка петља for'
+  prompt: |
+    Осмисли завршни део часа о бројачкој петљи тако да се повеже са наредним предавањем о гранању. Потребни су закључак и увод у наредну тему.
+- case_key: TC-031
+  use_case: Creating tests and questions
+  inclusive: true
+  course_key: kurs-sesti
+  activity_key: b8b21901-7e30-452b-a004-f855275bf3df
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/7/5577
+  activity_desc: 'Програмирање уз језик Python / 7.2. Променљиве - имена придружена подацима'
+  prompt: |
+    Направи кратак тест од пет питања за обнављање ове лекције: два лака, два средња и једно тешко питање, са вишеструким избором или дописивањем података. Два лака питања прилагоди ученику који ради по ИОП 1 јасним формулацијама и додатним ослонцем, а задржи исте исходе учења. Питања треба да се разликују од примера у лекцији.
+- case_key: TC-032
+  use_case: Assigning homework, practice tasks, and projects
+  inclusive: true
+  course_key: 8_razred_IKT_DigitalnaPismenost
+  activity_key: cd6ca4c3-a150-4715-bf00-68cad0d68341
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/482/1/5697
+  activity_desc: 'ИКТ и Дигитална писменост за осми разред / Једноставне формуле'
+  prompt: |
+    Помози ми да припремим једноставне задатке везане за основне формуле у Excel-у, са правилним уносом и форматирањем ћелија и табеле, као домаћи задатак након ове лекције. Прилагоди упутства ученику са тешкоћама у читању кратким корацима, примером попуњене ћелије и јасним критеријумима успеха.
+- case_key: TC-033
+  use_case: Lesson planning
+  inclusive: true
+  course_key: 8_razred_IKT_DigitalnaPismenost
+  activity_key: 4c8d6080-8651-4e0e-ba3f-a20307fbd47c
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/482/3/5708
+  activity_desc: 'ИКТ и Дигитална писменост за осми разред / Уношење формула и брзо копирање'
+  prompt: |
+    Напиши ми припрему за овај час. Укључи прилагођавања за ученика који ради по ИОП 1, алтернативни начин учешћа у практичном раду и јасне критеријуме успеха, без мењања исхода лекције.
+- case_key: TC-034
+  use_case: Explaining concepts
+  inclusive: true
+  course_key: 8_razred_IKT_DigitalnaPismenost
+  activity_key: 4be39967-0e8a-4bf7-bd8f-fc5964f9ebe8
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/482/12/5781
+  activity_desc: 'ИКТ и Дигитална писменост за осми разред / Тјурингов тест'
+  prompt: |
+    Направи кратке и јасно структурисане тезе за објашњавање ове лекције на три нивоа индивидуализације: ИОП 1, ИОП 2 и ИОП 3 за надарене ученике. Разврстај их по нивоу.
+- case_key: TC-035
+  use_case: Lesson planning
+  inclusive: false
+  course_key: 5_razred_IKT_DigitalnaPismenost
+  activity_key: 4c8c12ce-da5a-47d6-a903-8335b3ef7359
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/354/11/6054
+  activity_desc: 'ИКТ и Дигитална писменост за пети разред / Приступ интернету'
+  prompt: |
+    Осмисли план часа од 45 минута за ову лекцију, са кратком демонстрацијом, дискусијом о безбедном приступу интернету, практичном активношћу и завршном рефлексијом.
+- case_key: TC-036
+  use_case: Creating tests and questions
+  inclusive: false
   course_key: kurs-sesti
   activity_key: 9b315409-894f-46be-a362-16e233ea9677
   activity_url: https://petlja.org/sr-Latn-RS/kurs/368/8/5584
-  activity_desc: Информатика 6 / Python / Реално и целобројно дељење
+  activity_desc: 'Програмирање уз језик Python / 8.2. Реално и целобројно дељење'
   prompt: |
-    Направи ми план часа за ову лекцију. Час треба да трана 45 минута. 
-    На крају предложи задатке за домаћи.
-- case_key: A4
-  course_key: 6_razred_IKT_DigitalnaPismenost
-  activity_key: 1aaa7fff-6f50-4a2a-b64d-f6f86ca28043
-  activity_url: https://petlja.org/sr-Latn-RS/kurs/353/13/6909
-  activity_desc: Информатика 6 / Дититална писменост / Употреба ИКТ уређаја у мрежном окружењу
+    Састави блиц-тест на основу ове лекције о реалном и целобројном дељењу, на три нивоа, тако да само трећи ниво садржи отворена питања. Додај бодове.
+- case_key: TC-037
+  use_case: Providing formative comments
+  inclusive: false
+  course_key: kurs-sesti
+  activity_key: fd6be321-a89e-4db3-8d0c-ae4129727802
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/2/5553
+  activity_desc: 'Програмирање уз језик Python / 2.1. Условне петље'
   prompt: |
-    Дај ми три теме за пројектни задатак везан за ову лекцију, 
-    укључујући инструкције за израду пројектонг задатка.
+    Ученик успешно користи for када је број понављања познат, али у Кареловом задатку поставља погрешан услов за завршетак while петље. Напиши кратак формативни коментар који препознаје успех и предлаже конкретну вежбу.
+- case_key: TC-038
+  use_case: Solving tasks
+  inclusive: false
+  course_key: kurs-sedmi-pygame
+  activity_key: dc49e87f-93b3-4c6b-8717-bcc0a8dab9c0
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/5/5643
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 5.1. Цртање облика - квадрати и правоугаоници'
+  prompt: |
+    Напиши Pygame програм који црта кућу од једног правоугаоника и два квадрата. Објасни координате, димензије, боју и параметар дебљине у сваком позиву pg.draw.rect.
+- case_key: TC-039
+  use_case: Summarizing and describing a lesson
+  inclusive: false
+  course_key: kurs-sesti
+  activity_key: dcf94e04-ec2f-40b4-94bb-51ba5879c167
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/14/5615
+  activity_desc: 'Програмирање уз језик Python / 14.3. Ниске'
+  prompt: |
+    Укратко опиши шта лекција обрађује о нискама: непроменљивост, спајање, индексирање, исецање, претраживање и раздвајање.
+- case_key: TC-040
+  use_case: Solving tasks
+  inclusive: true
+  course_key: kurs-sesti
+  activity_key: 3e87e723-f3f7-453b-b700-b5a8a9fa40c4
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/368/12/5605
+  activity_desc: 'Програмирање уз језик Python / 12.2. Понављање - условна петља while'
+  prompt: |
+    Реши задатак: У току је распродаја ципела. Напиши програм који корисницима омогућава да израчунају снижену цену ципела које желе да купе. У петљи се уносе цена ципела и проценат снижења и исписује се снижена цена. Програм престаје са радом када се унесе цена 0. Објасни решење кратким корацима и додај табелу са једним примером улаза и излаза за ученика са тешкоћама у учењу.
+- case_key: TC-041
+  use_case: Assisting in evaluating homework and project assignments
+  inclusive: true
+  course_key: kurs-prvi-ikt
+  activity_key: 8535139c-0240-40cc-b337-1d2234f8eae2
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/490/25/6855
+  activity_desc: 'ИКТ, Рачунарство и Организација података за први разред гимназије / Презентације и њихова примена'
+  prompt: |
+    Ученик који ради по ИОП 1 предао је презентацију која обрађује задату тему, али нема јасну структуру, доследан распоред елемената ни наведене изворе слика. Процени рад према прилагођеним критеријумима и исходима лекције, издвој доказе и остави коначну оцену наставнику.
+- case_key: TC-042
+  use_case: Using tools and technical settings
+  inclusive: false
+  course_key: kurs-prvi-ikt
+  activity_key: d56ff2e5-08bd-45ab-b978-6f0bcae64be5
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/490/25/6854
+  activity_desc: 'ИКТ, Рачунарство и Организација података за први разред гимназије / Рад у Пауерпоинту - подсетник'
+  prompt: |
+    На основу ове лекције, напиши кратко практично упутство за преузимање Google Slides презентације и њено уређивање у PowerPoint-у.
+- case_key: TC-043
+  use_case: Using tools and technical settings
+  inclusive: true
+  course_key: kurs-prvi-ikt
+  activity_key: 1cba964a-7d9d-43e6-80b5-b3ffcdc911ec
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/490/24/6850
+  activity_desc: 'ИКТ, Рачунарство и Организација података за први разред гимназије / Слајд - презентације у дељеном документу'
+  prompt: |
+    Напиши конкретно упутство за израду и дељење презентације у Google Slides-у за ученике који раније нису користили овај софтвер. Упутство прилагоди и ученику са тешкоћама у читању: користи кратке нумерисане кораке, тачне називе контрола и јасне описе онога што треба да се појави на екрану.
+- case_key: TC-044
+  use_case: Using tools and technical settings
+  inclusive: false
+  course_key: kurs-prvi-ikt
+  activity_key: f71bbd48-f9bd-4895-bf36-96db171ac30b
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/490/26/6859
+  activity_desc: 'ИКТ, Рачунарство и Организација података за први разред гимназије / Напредне технике израде слајд презентација'
+  prompt: |
+    Опиши напредне технике из лекције тако да се раде у софтверу PowerPoint.
+- case_key: TC-045
+  use_case: Creating examples for teaching purposes
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: 0d92e102-f57b-4274-a6e9-e94499cde935
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/5/6687
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Дизајн табела у бази података - везе 1:1 и M:M'
+  prompt: |
+    Дај неколико примера у којима је веза део идентификатора, а да то није добијено разрешавањем везе M:M.
+- case_key: TC-046
+  use_case: Assisting in evaluating homework and project assignments
+  inclusive: false
+  course_key: specit_baze3
+  activity_key: 855f0a0d-b8be-4ff7-9065-4fc68ee2f4ef
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/7963/4/6683
+  activity_desc: 'Базе података за трећи разред специјализованих ИТ одељења / Нормализација'
+  prompt: |
+    Ученик тврди да је модел у трећој нормалној форми, али један некључни атрибут зависи од другог некључног атрибута. Процени решење у односу на лекцију, објасни уочени проблем и наведи шта наставник треба да провери пре коначне оцене.
+- case_key: TC-047
+  use_case: Summarizing and describing a lesson
+  inclusive: true
+  course_key: kurs-sedmi-pygame
+  activity_key: fcea681e-4791-4d4d-aff4-488fd923e9dq
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/3/5636
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 3.2. Боје'
+  prompt: |
+    Сажми начине задавања боја у Pygame-у: називом боје, RGB торком и листом. Резиме прилагоди ученику са тешкоћама у одржавању пажње помоћу кратких целина, истакнутих кључних појмова и једног визуелно описаног примера.
+- case_key: TC-048
+  use_case: Using tools and technical settings
+  inclusive: false
+  course_key: kurs-sedmi-pygame
+  activity_key: e2a30a14-4137-4924-b860-101e3e7d4420
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/10/5667
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 10.1. Слике и текст'
+  prompt: |
+    Наведи потребне Pygame наредбе за учитавање и приказ слике и за креирање, позиционирање и приказ текста.
+- case_key: TC-049
+  use_case: Summarizing and describing a lesson
+  inclusive: false
+  course_key: kurs-sedmi-pygame
+  activity_key: 1bfd9aa9-2dc3-4908-97ec-04647820d1ff
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/12/5677
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 12.2. Правилно распоређивање боја'
+  prompt: |
+    Укратко опиши како се у лекцији помоћу петље и RGB вредности праве правилни прелази нијанси и градијенти.
+- case_key: TC-050
+  use_case: Explaining concepts
+  inclusive: false
+  course_key: kurs-sedmi-pygame
+  activity_key: cb864629-9b77-4812-a463-607edae9f675
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/5/5644
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 5.2. Цртање облика - елипсе'
+  prompt: |
+    Објасни по редоследу шта ради сваки аргумент у позиву pg.draw.ellipse(prozor, boja, (x, y, sirina, visina), debljina).
+- case_key: TC-051
+  use_case: Creating examples for teaching purposes
+  inclusive: true
+  course_key: kurs-sedmi-pygame
+  activity_key: 72c0b759-f0d4-4e02-a2d0-66899b33665b
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/7/5653
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 7.1. Симетрично пресликане координате'
+  prompt: |
+    Наведи пример симетричног цртежа из реалног живота за рад са децом на основном, средњем и напредном нивоу. Основни ниво прилагоди ученику са тешкоћама у учењу кратким упутством, мањим бројем корака и започетим примером.
+- case_key: TC-052
+  use_case: Creating tests and questions
+  inclusive: true
+  course_key: kurs-sedmi-pygame
+  activity_key: 847d4f5b-88be-418a-b855-1f44f1fef8cb
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/14/5686
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 14.2. Угнежђене петље'
+  prompt: |
+    Направи тест од десет питања о угнежђеним петљама у Pygame-у, са по два питања за индивидуализовани, основни, средњи, напредни и креативни ниво.
+- case_key: TC-053
+  use_case: Providing formative comments
+  inclusive: false
+  course_key: kurs-sedmi-pygame
+  activity_key: 91f5c315-8997-4a43-a7a3-7a35e48334c5
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/4/5639
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 4.1. Дужи'
+  prompt: |
+    Ученик правилно користи наредбу за цртање линије и координате, али меша параметре за боју и дебљину. Напиши кратак формативни коментар са похвалом, јасном исправком и следећим задатком за вежбу.
+- case_key: TC-054
+  use_case: Providing formative comments
+  inclusive: true
+  course_key: kurs-sedmi-pygame
+  activity_key: 01d29a52-12db-4fd2-8065-ab5e0cc9e4b5
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/8/5658
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 8.2. Повећавање и смањивање једног објекта, центрирање'
+  prompt: |
+    Ученик са тешкоћама у одржавању пажње правилно је смањио димензије квадрата, али није променио координате горњег левог темена да би квадрат остао центриран. Напиши кратак, подстицајан формативни коментар са једним јасним следећим кораком.
+- case_key: TC-055
+  use_case: Assisting in evaluating homework and project assignments
+  inclusive: true
+  course_key: kurs-sedmi-pygame
+  activity_key: 4932bc09-ca0d-44be-836d-c9e9fcca413a
+  activity_url: https://petlja.org/sr-Latn-RS/kurs/395/6/5649
+  activity_desc: 'Програмирање графике помоћу Пајгејм за седми разред / 6.2. Цртање облика - многоуглови (полигони)'
+  prompt: |
+    Ученик са моторичким тешкоћама, који користи додатно време као прилагођавање, предао је решење за цртање полигона, али је заменио редослед две тачке и поставио дебљину контуре 3 уместо 5. Процени решење према истим исходима, узми у обзир одобрено прилагођавање, наведи доказе и остави коначну оцену наставнику.

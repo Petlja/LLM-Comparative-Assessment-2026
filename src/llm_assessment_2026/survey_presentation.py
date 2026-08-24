@@ -47,7 +47,8 @@ def build_response_comparison(
     )
     presentation_html = f"""
         <style>
-            .sd-body.sd-body--static {{ max-width: 1280px; }}
+            #surveyContainer {{ max-width: 1800px; }}
+            .sd-body.sd-body--static {{ max-width: none; }}
             #{presentation_id} {{ margin: 0 0 1.5rem; }}
             #{presentation_id} .llm-response-tabs {{ display: none; }}
             #{presentation_id} .llm-response-tab-input {{
@@ -60,15 +61,13 @@ def build_response_comparison(
                 display: grid;
                 grid-template-columns: repeat(3, minmax(0, 1fr));
                 gap: 0.75rem;
-                align-items: start;
+                align-items: stretch;
             }}
             #{presentation_id} .llm-response-panel {{
                 min-width: 0;
-                max-height: 65vh;
                 box-sizing: border-box;
                 border: 1px solid #c7ced8;
                 background: #fff;
-                overflow: auto;
             }}
             #{presentation_id} .llm-response-heading {{
                 position: sticky;
@@ -78,8 +77,31 @@ def build_response_comparison(
                 padding: 0.75rem 1rem;
                 border-bottom: 1px solid #c7ced8;
                 background: #eef1f5;
+                font-size: 1.25rem;
             }}
             #{presentation_id} .llm-response-content {{ padding: 0.25rem 1rem 1rem; }}
+            #{presentation_id} .llm-response-content h1,
+            #{presentation_id} .llm-response-content h2,
+            #{presentation_id} .llm-response-content h3,
+            #{presentation_id} .llm-response-content h4,
+            #{presentation_id} .llm-response-content h5,
+            #{presentation_id} .llm-response-content h6 {{
+                margin: 1rem 0 0.5rem;
+                line-height: 1.2;
+            }}
+            #{presentation_id} .llm-response-content h1 {{ font-size: 1.75rem; }}
+            #{presentation_id} .llm-response-content h2 {{ font-size: 1.5rem; }}
+            #{presentation_id} .llm-response-content h3 {{ font-size: 1.25rem; }}
+            #{presentation_id} .llm-response-content h4,
+            #{presentation_id} .llm-response-content h5,
+            #{presentation_id} .llm-response-content h6 {{ font-size: 1.125rem; }}
+            #{presentation_id} .llm-response-content p {{
+                margin: 0.5rem 0;
+                line-height: 1.5;
+            }}
+            #{presentation_id} .llm-response-content ul,
+            #{presentation_id} .llm-response-content ol {{ margin: 0.5rem 0; }}
+            #{presentation_id} .llm-response-content li {{ margin: 0.125rem 0; }}
             #{presentation_id} img {{ max-width: 100%; height: auto; }}
             #{presentation_id} pre {{ overflow-x: auto; }}
             @media (max-width: 900px) {{
