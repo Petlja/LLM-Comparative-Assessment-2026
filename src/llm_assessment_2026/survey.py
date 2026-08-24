@@ -19,10 +19,12 @@ from .survey_presentation import COMPLETED_HTML, build_page_title, build_respons
 OUTPUT_DIR = "eval/output"
 
 RANKING_CATEGORIES = [
-    ("q1", "Korisnost za nastavnu praksu"),
-    ("q2", "Izbor termina"),
-    ("q3", "Prirodnost srpskog jezika"),
-    ("q4", "Ukupan utisak"),
+    ("q1", "Tačnost navedenih informacija"),
+    ("q2", "Usklađenost sa gradivom"),
+    ("q3", "Primerenost nivou znanja i mogućnostima učenika"),
+    ("q4", "Pravilna upotreba stručnih termina"),
+    ("q5", "Jasnoća i prirodnost srpskog jezika"),
+    ("q6", "Koji biste odgovor najradije iskoristili u praksi, uz moguće dorade?"),
 ]
 
 def _build_comparison_page(
