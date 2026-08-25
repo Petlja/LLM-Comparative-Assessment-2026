@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "click",
+    "playwright",
     "pyyaml",
     "plct-llm-compare",
     "simple-survey @ git+https://github.com/Petlja/simple-survey.git@v0.1.4",

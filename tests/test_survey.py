@@ -48,7 +48,14 @@ def test_comparison_page_is_scoped_to_group_and_uses_full_model_ids() -> None:
     assert ".llm-response-content p {" in presentation["html"]
     assert "margin: 0.5rem 0;" in presentation["html"]
     assert matrix["name"] == "A1__0__group-03__ranking"
-    assert [row["value"] for row in matrix["rows"]] == ["q1", "q2", "q3", "q4"]
+    assert [row["value"] for row in matrix["rows"]] == [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+    ]
     assert [column["name"] for column in matrix["columns"]] == ["best", "worst"]
     assert [choice["value"] for choice in matrix["columns"][0]["choices"]] == [
         "provider/model-a",
@@ -56,7 +63,7 @@ def test_comparison_page_is_scoped_to_group_and_uses_full_model_ids() -> None:
         "other/model-c",
     ]
     assert "q1.best" in matrix["validators"][0]["expression"]
-    assert "q4.worst" in matrix["validators"][0]["expression"]
+    assert "q6.worst" in matrix["validators"][0]["expression"]
 
 
 def test_comment_question_is_unique_to_the_group() -> None:

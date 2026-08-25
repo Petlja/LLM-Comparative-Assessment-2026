@@ -70,7 +70,7 @@ do not belong in the shared tooling.
         numeric `group` variable from `1` through `10`; SurveyJS uses that variable
         to show only the pages assigned to the participant. Each visible page shows
         three responses side by side and collects the best and worst model for all
-        four assessment criteria in one matrix. For example:
+        six assessment criteria in one matrix. For example:
 
         ```json
         {
@@ -84,6 +84,29 @@ do not belong in the shared tooling.
     ```bash
     uv run survey-preview eval/output/survey.json
     ```
+
+8.  In another terminal, test one participant flow against the running Simple
+    Survey instance. Set the admin token printed by `survey-preview` in the
+    environment so it does not remain in command history:
+    ```bash
+    uv run playwright install chromium
+    $env:SIMPLE_SURVEY_ADMIN_TOKEN = "<admin-token>"
+    uv run llmcmp test_survey --seed 42
+    ```
+
+    By default, the command fetches participants from the API, ignores participants
+    without a `group` variable, and tests the first participant for each distinct
+    group. Pass `--group 1` to instead create, test, and delete one temporary
+    participant for that group.
+
+    The longest rendered model response is ranked best and the shortest worst. The
+    seed is used only to break exact length ties and choose synthetic comments.
+    Chromium submits the answers, then the command fetches `/api/responses` and
+    verifies every tested participant. Generated answers, per-model character and
+    word counts, and verification metadata are written to
+    `eval/output/survey-test.json`. The literal, unredacted response returned by the
+    API is written separately to `eval/output/survey-test-responces.json`; treat that
+    file as sensitive because it contains participant tokens.
 
 Generated artifacts under `eval/output` are not tracked; the survey definition under
 `survey/` and the results kept for the record are committed.

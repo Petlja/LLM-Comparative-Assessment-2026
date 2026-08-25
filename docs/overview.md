@@ -12,12 +12,14 @@ the sibling `AI-Assistant-LLM-Compare` repository and is consumed here through t
 
 ## Architecture
 
-The project is a small Python package with two responsibilities specific to this
+The project is a small Python package with three responsibilities specific to this
 assessment round:
 
 1. Validate the round's YAML test case definitions through `llmcmp check_cases`.
 2. Build a SurveyJS survey from HTML responses and their matching JSON metadata
    through `llmcmp survey`.
+3. Exercise a running Simple Survey instance as a participant and verify the stored
+  response through its admin API with `llmcmp test_survey`.
 
 The shared `plcmp` CLI prepares cases, runs model inference, and performs judge
 comparisons. Those commands produce intermediate artifacts under `eval/output/`,
