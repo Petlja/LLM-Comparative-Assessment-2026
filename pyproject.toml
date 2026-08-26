@@ -16,7 +16,7 @@ dependencies = [
 llmcmp = "llm_assessment_2026.llmcmp:main"
 
 [dependency-groups]
-dev = ["pytest"]
+dev = ["ipykernel", "pytest"]
 
 [tool.uv]
 package = true

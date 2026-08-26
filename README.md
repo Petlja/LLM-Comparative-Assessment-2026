@@ -85,9 +85,10 @@ do not belong in the shared tooling.
     uv run survey-preview eval/output/survey.json
     ```
 
-8.  In another terminal, test one participant flow against the running Simple
-    Survey instance. Set the admin token printed by `survey-preview` in the
-    environment so it does not remain in command history:
+8.  In another terminal, test the participant flows against the running Simple
+    Survey instance and generate synthetic sample results for the analysis workflow.
+    Set the admin token printed by `survey-preview` in the environment so it does
+    not remain in command history:
     ```bash
     uv run playwright install chromium
     $env:SIMPLE_SURVEY_ADMIN_TOKEN = "<admin-token>"
@@ -96,8 +97,10 @@ do not belong in the shared tooling.
 
     By default, the command fetches participants from the API, ignores participants
     without a `group` variable, and tests the first participant for each distinct
-    group. Pass `--group 1` to instead create, test, and delete one temporary
-    participant for that group.
+    group. This produces a representative sample response for every configured
+    group, allowing the analysis scripts to be developed and checked before human
+    responses are available. Pass `--group 1` to instead create, test, and delete one
+    temporary participant for that group.
 
     The longest rendered model response is ranked best and the shortest worst. The
     seed is used only to break exact length ties and choose synthetic comments.
@@ -106,7 +109,20 @@ do not belong in the shared tooling.
     word counts, and verification metadata are written to
     `eval/output/survey-test.json`. The literal, unredacted response returned by the
     API is written separately to `eval/output/survey-test-responces.json`; treat that
-    file as sensitive because it contains participant tokens.
+    file as sensitive because it contains participant tokens. These synthetic
+    results validate the survey and analysis pipeline; they must not be interpreted
+    as human evaluation results.
+
+9.  Analyze the collected responses. Unlike the CLI-driven workflow above, analysis
+    is organized in [`suvrey-analisys/`](suvrey-analisys/) as notebook-style Python
+    scripts and supporting modules. The scripts use `# %%` cell markers and are
+    intended to be run interactively in VS Code or another Jupyter-compatible
+    editor. As is customary for exploratory analysis scripts, they do not expose
+    command-line parameters; select input files and make other adjustments directly
+    in the scripts' setup cells. Start with
+    [`basic-analisys.py`](suvrey-analisys/basic-analisys.py), select the appropriate
+    response export, and run its cells to calculate the Plackett-Luce rankings and
+    response-size summaries.
 
 Generated artifacts under `eval/output` are not tracked; the survey definition under
 `survey/` and the results kept for the record are committed.
@@ -119,5 +135,6 @@ Deeper project documentation lives in [`docs/`](docs/). Start with the
 
 ## Status
 
-Setup in progress. `eval/test-cases.yml` currently holds a placeholder case and is to
-be replaced with the 2026 assessment material.
+`eval/test-cases.yml` contains 55 assessment cases across 7 courses, with generated
+responses available for five models. The survey pipeline has been validated with
+synthetic responses; human evaluation results are still pending.
