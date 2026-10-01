@@ -2,6 +2,9 @@
 # Survey response analysis
 
 # %%
+import pandas as pd
+from IPython.display import Markdown, display
+
 from survey_responce import (
 	average_response_size_by_model,
 	load_responses,
@@ -21,7 +24,9 @@ len(responses)
 
 # %%
 rankings_by_category = rank_llms_by_category(responses, survey_path)
-rankings_by_category
+for category, rankings in rankings_by_category.items():
+	display(Markdown(f"### {category}"))
+	display(pd.DataFrame(rankings).set_index("rank"))
 
 # %% [markdown]
 # Average response size by model
