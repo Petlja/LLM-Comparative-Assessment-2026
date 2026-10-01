@@ -9,7 +9,7 @@ dependencies = [
     "playwright",
     "pyyaml",
     "plct-llm-compare",
-    "simple-survey @ git+https://github.com/Petlja/simple-survey.git@v0.1.4",
+    "simple-survey @ git+https://github.com/Petlja/simple-survey.git@v0.1.5",
 ]
 
 [project.scripts]
