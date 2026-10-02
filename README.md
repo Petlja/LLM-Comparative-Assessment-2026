@@ -266,6 +266,21 @@ interactively. The supporting
 The default setup reads the synthetic files under `eval/output`; change it before
 analyzing human responses. Keep synthetic and human exports separate.
 
+To rank responses while they are being collected, run
+[`live-analisys.ipynb`](suvrey-analisys/live-analisys.ipynb) instead. It fetches
+`/api/responses` from a running Simple Survey instance, includes draft responses
+but skips criteria where best or worst is not yet selected, and reads the survey
+definition from `eval/output/survey.json`.
+Put the connection settings in `suvrey-analisys/live-analisys-config.json`, which is
+ignored by Git:
+
+```json
+{
+  "base_url": "http://127.0.0.1:5000",
+  "admin_token": "<Simple Survey admin token>"
+}
+```
+
 ## Artifact lifecycle
 
 | Path | Contents | Handling |

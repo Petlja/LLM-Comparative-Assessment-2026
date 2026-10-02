@@ -55,6 +55,73 @@ def _load_ranking_questions(
     return choices_by_question, category_names
 
 
+def _load_cases(survey_path: str | Path) -> tuple[dict[str, int], dict[str, str]]:
+    """Return criteria count per case and the case of every question, keyed by ranking matrix name."""
+    with open(survey_path, encoding="utf-8") as survey_file:
+        survey = json.load(survey_file)
+
+    criteria_by_case = {}
+    case_by_question = {}
+    for page in survey["pages"]:
+        matrix = next(
+            element for element in page["elements"] if element.get("type") == "matrixdropdown"
+        )
+        criteria_by_case[matrix["name"]] = len(matrix["rows"])
+        for element in page["elements"]:
+            case_by_question[element["name"]] = matrix["name"]
+
+    return criteria_by_case, case_by_question
+
+
+def _count_complete_rankings(answer: dict[str, dict[str, str]]) -> int:
+    return sum(
+        1
+        for selection in answer.values()
+        if selection.get("best") and selection.get("worst")
+        and selection["best"] != selection["worst"]
+    )
+
+
+def summarize_participants(
+    responses: list[dict[str, Any]],
+    participants: list[dict[str, Any]],
+    survey_path: str | Path,
+) -> list[dict[str, Any]]:
+    criteria_by_case, case_by_question = _load_cases(survey_path)
+    group_by_token = {
+        participant["token"]: (participant.get("variables") or {}).get("group")
+        for participant in participants
+    }
+    summaries = []
+    for response in responses:
+        answers = response["answers"]
+        touched_cases = {
+            case_by_question[name]
+            for name, answer in answers.items()
+            if answer and name in case_by_question
+        }
+        complete_rankings_by_case = {
+            case: _count_complete_rankings(answers.get(case, {}))
+            for case in touched_cases
+        }
+        completed_cases = sum(
+            count == criteria_by_case[case]
+            for case, count in complete_rankings_by_case.items()
+        )
+        summaries.append({
+            "participant": response["label"],
+            "group": group_by_token.get(response["token"]),
+            "status": response["status"],
+            "last_page": response["last_page"],
+            "saved_at": response["submitted_at"],
+            "completed_cases": completed_cases,
+            "incomplete_cases": len(touched_cases) - completed_cases,
+            "complete_rankings": sum(complete_rankings_by_case.values()),
+        })
+
+    return summaries
+
+
 def _fit_plackett_luce(
     rankings: list[tuple[str, str, str]],
     models: set[str],
@@ -101,10 +168,11 @@ def _fit_plackett_luce(
 def rank_llms_by_category(
     responses: list[dict[str, Any]],
     survey_path: str | Path,
+    *,
+    skip_incomplete: bool = False,
 ) -> dict[str, list[dict[str, str | int | float]]]:
     choices_by_question, category_names = _load_ranking_questions(survey_path)
     rankings_by_category: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
-    models = set()
 
     for response in responses:
         for question_name, answer in response["answers"].items():
@@ -112,18 +180,23 @@ def rank_llms_by_category(
                 continue
 
             choices = choices_by_question[question_name]
-            models.update(choices)
             for category_id, selection in answer.items():
-                best = selection["best"]
-                worst = selection["worst"]
+                best = selection.get("best")
+                worst = selection.get("worst")
                 middle = [model for model in choices if model not in {best, worst}]
                 if best not in choices or worst not in choices or len(middle) != 1:
+                    if skip_incomplete:
+                        continue
                     raise ValueError(f"Invalid ranking in {question_name}, {category_id}.")
                 rankings_by_category[category_id].append((best, middle[0], worst))
 
     result = {}
     for category_id, category_name in category_names.items():
         rankings = rankings_by_category[category_id]
+        if not rankings:
+            continue
+        # Partial answers can leave a model unranked in some categories.
+        models = {model for ranking in rankings for model in ranking}
         scores = _fit_plackett_luce(rankings, models)
         ordered_models = sorted(models, key=lambda model: (-scores[model], model))
         result[category_name] = [
