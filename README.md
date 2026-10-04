@@ -38,7 +38,7 @@ The shared package is consumed as an editable dependency from the sibling checko
 | `llmcmp survey` | Build this round's balanced three-model SurveyJS survey | This repository |
 | `survey-preview` | Serve a generated survey in a temporary local Simple Survey instance | Simple Survey dependency |
 | `llmcmp test_survey` | Submit synthetic responses through Chromium and verify the API result | This repository |
-| `suvrey-analisys/*.py` | Calculate Plackett-Luce rankings and response-size summaries | This repository |
+| `suvrey-analisys/*.py` | Calculate Plackett-Luce rankings, Borda rankings (5/3/1 average points per model appearance), and response-size summaries | This repository |
 
 The shared CLI also has a generic `plcmp survey` command. Do not use it for the 2026
 round: `llmcmp survey` implements this assessment's triplet assignment, presentation,

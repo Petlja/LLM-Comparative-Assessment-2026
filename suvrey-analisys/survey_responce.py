@@ -165,7 +165,55 @@ def _fit_plackett_luce(
     return scores
 
 
-def rank_llms_by_category(
+def rank_llms_by_category_borda(
+    responses: list[dict[str, Any]],
+    survey_path: str | Path,
+    *,
+    skip_incomplete: bool = False,
+) -> dict[str, list[dict[str, str | int | float]]]:
+    """Rank models by mean Borda points per valid appearance: best=5, middle=3, worst=1."""
+    choices_by_question, category_names = _load_ranking_questions(survey_path)
+    scores_by_category: dict[str, Counter[str]] = defaultdict(Counter)
+    counts_by_category: dict[str, Counter[str]] = defaultdict(Counter)
+
+    for response in responses:
+        for question_name, answer in response["answers"].items():
+            if question_name not in choices_by_question:
+                continue
+
+            choices = choices_by_question[question_name]
+            for category_id, selection in answer.items():
+                best = selection.get("best")
+                worst = selection.get("worst")
+                middle = [model for model in choices if model not in {best, worst}]
+                if best not in choices or worst not in choices or len(middle) != 1:
+                    if skip_incomplete:
+                        continue
+                    raise ValueError(f"Invalid ranking in {question_name}, {category_id}.")
+                scores = scores_by_category[category_id]
+                scores[best] += 5
+                scores[middle[0]] += 3
+                scores[worst] += 1
+                counts_by_category[category_id].update((best, middle[0], worst))
+
+    result = {}
+    for category_id, category_name in category_names.items():
+        scores = {
+            model: total / counts_by_category[category_id][model]
+            for model, total in scores_by_category[category_id].items()
+        }
+        if not scores:
+            continue
+        ordered_models = sorted(scores, key=lambda model: (-scores[model], model))
+        result[category_name] = [
+            {"rank": rank, "model": model, "score": scores[model]}
+            for rank, model in enumerate(ordered_models, start=1)
+        ]
+
+    return result
+
+
+def rank_llms_by_category_pl(
     responses: list[dict[str, Any]],
     survey_path: str | Path,
     *,

@@ -8,7 +8,7 @@ from IPython.display import Markdown, display
 from survey_responce import (
 	average_response_size_by_model,
 	load_responses,
-	rank_llms_by_category,
+	rank_llms_by_category_pl,
 )
 
 # %%
@@ -23,7 +23,7 @@ len(responses)
 # Plackett-Luce rankings by category
 
 # %%
-rankings_by_category = rank_llms_by_category(responses, survey_path)
+rankings_by_category = rank_llms_by_category_pl(responses, survey_path)
 for category, rankings in rankings_by_category.items():
 	display(Markdown(f"### {category}"))
 	display(pd.DataFrame(rankings).set_index("rank"))
