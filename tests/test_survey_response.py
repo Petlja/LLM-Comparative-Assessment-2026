@@ -8,6 +8,9 @@ import pytest
 rank_llms_by_category_borda = run_path(
     str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
 )["rank_llms_by_category_borda"]
+rank_llms_by_category_pl = run_path(
+    str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
+)["rank_llms_by_category_pl"]
 
 
 @pytest.fixture
@@ -46,14 +49,14 @@ def test_borda_averages_categories_and_ties(survey_path: Path) -> None:
 
     assert rank_llms_by_category_borda(responses, survey_path) == {
         "Accuracy": [
-            {"rank": 1, "model": "model-a", "score": 4.0},
-            {"rank": 2, "model": "model-b", "score": 4.0},
-            {"rank": 3, "model": "model-c", "score": 1.0},
+            {"rank": 1, "model": "model-a", "score": 4.0, "answer_count": 2},
+            {"rank": 2, "model": "model-b", "score": 4.0, "answer_count": 2},
+            {"rank": 3, "model": "model-c", "score": 1.0, "answer_count": 2},
         ],
         "Clarity": [
-            {"rank": 1, "model": "model-c", "score": 5},
-            {"rank": 2, "model": "model-b", "score": 3},
-            {"rank": 3, "model": "model-a", "score": 1},
+            {"rank": 1, "model": "model-c", "score": 5, "answer_count": 1},
+            {"rank": 2, "model": "model-b", "score": 3, "answer_count": 1},
+            {"rank": 3, "model": "model-a", "score": 1, "answer_count": 1},
         ],
     }
 
@@ -77,9 +80,9 @@ def test_borda_invalid_rankings(survey_path: Path, selection: dict[str, str]) ->
     assert rank_llms_by_category_borda(
         responses, survey_path, skip_incomplete=True,
     ) == {"Clarity": [
-        {"rank": 1, "model": "model-a", "score": 5},
-        {"rank": 2, "model": "model-b", "score": 3},
-        {"rank": 3, "model": "model-c", "score": 1},
+        {"rank": 1, "model": "model-a", "score": 5, "answer_count": 1},
+        {"rank": 2, "model": "model-b", "score": 3, "answer_count": 1},
+        {"rank": 3, "model": "model-c", "score": 1, "answer_count": 1},
     ]}
 
 
@@ -110,11 +113,48 @@ def test_borda_averages_per_model_appearance(survey_path: Path) -> None:
     assert rank_llms_by_category_borda(
         responses, survey_path, skip_incomplete=True,
     ) == {"Accuracy": [
-        {"rank": 1, "model": "model-d", "score": 5.0},
-        {"rank": 2, "model": "model-a", "score": pytest.approx(11 / 3)},
-        {"rank": 3, "model": "model-b", "score": 3.0},
-        {"rank": 4, "model": "model-c", "score": 1.0},
+        {"rank": 1, "model": "model-d", "score": 5.0, "answer_count": 1},
+        {"rank": 2, "model": "model-a", "score": pytest.approx(11 / 3), "answer_count": 3},
+        {"rank": 3, "model": "model-b", "score": 3.0, "answer_count": 3},
+        {"rank": 4, "model": "model-c", "score": 1.0, "answer_count": 2},
     ]}
+
+
+@pytest.mark.parametrize("rank_models", [
+    rank_llms_by_category_borda,
+    rank_llms_by_category_pl,
+])
+def test_answer_counts_per_model_and_category(survey_path: Path, rank_models) -> None:
+    survey = json.loads(survey_path.read_text(encoding="utf-8"))
+    matrix = survey["pages"][0]["elements"][0]
+    survey["pages"].append({"elements": [{
+        **matrix,
+        "name": "other_ranking",
+        "columns": [{"choices": [
+            {"value": model} for model in ("model-a", "model-b", "model-d")
+        ]}],
+    }]})
+    survey_path.write_text(json.dumps(survey), encoding="utf-8")
+    responses = [{"answers": {
+        "ranking": {
+            "q1": {"best": "model-a", "worst": "model-c"},
+            "q2": {"best": "model-c", "worst": "model-a"},
+        },
+        "other_ranking": {
+            "q1": {"best": "model-d", "worst": "model-a"},
+            "q2": {"best": "model-d"},
+        },
+    }}]
+
+    results = rank_models(responses, survey_path, skip_incomplete=True)
+
+    assert {
+        category: {row["model"]: row["answer_count"] for row in rows}
+        for category, rows in results.items()
+    } == {
+        "Accuracy": {"model-a": 2, "model-b": 2, "model-c": 1, "model-d": 1},
+        "Clarity": {"model-a": 1, "model-b": 1, "model-c": 1},
+    }
 
 
 def test_borda_empty_responses(survey_path: Path) -> None:

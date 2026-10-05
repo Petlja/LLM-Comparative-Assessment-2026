@@ -206,7 +206,12 @@ def rank_llms_by_category_borda(
             continue
         ordered_models = sorted(scores, key=lambda model: (-scores[model], model))
         result[category_name] = [
-            {"rank": rank, "model": model, "score": scores[model]}
+            {
+                "rank": rank,
+                "model": model,
+                "score": scores[model],
+                "answer_count": counts_by_category[category_id][model],
+            }
             for rank, model in enumerate(ordered_models, start=1)
         ]
 
@@ -244,11 +249,17 @@ def rank_llms_by_category_pl(
         if not rankings:
             continue
         # Partial answers can leave a model unranked in some categories.
-        models = {model for ranking in rankings for model in ranking}
+        counts = Counter(model for ranking in rankings for model in ranking)
+        models = set(counts)
         scores = _fit_plackett_luce(rankings, models)
         ordered_models = sorted(models, key=lambda model: (-scores[model], model))
         result[category_name] = [
-            {"rank": rank, "model": model, "score": round(scores[model], 6)}
+            {
+                "rank": rank,
+                "model": model,
+                "score": round(scores[model], 6),
+                "answer_count": counts[model],
+            }
             for rank, model in enumerate(ordered_models, start=1)
         ]
 
