@@ -5,12 +5,11 @@ from runpy import run_path
 import pytest
 
 
-rank_llms_by_category_borda = run_path(
+_module = run_path(
     str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
-)["rank_llms_by_category_borda"]
-rank_llms_by_category_pl = run_path(
-    str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
-)["rank_llms_by_category_pl"]
+)
+rank_llms_by_category_borda = _module["rank_llms_by_category_borda"]
+rank_llms_by_category_pl = _module["rank_llms_by_category_pl"]
 
 
 @pytest.fixture
@@ -159,3 +158,29 @@ def test_answer_counts_per_model_and_category(survey_path: Path, rank_models) ->
 
 def test_borda_empty_responses(survey_path: Path) -> None:
     assert rank_llms_by_category_borda([], survey_path) == {}
+
+
+def test_overall_ranking_pools_category_triplets(survey_path: Path) -> None:
+    responses = [{"answers": {"ranking": {
+        "q1": {"best": "model-a", "worst": "model-c"},
+        "q2": {"best": "model-c", "worst": "model-a"},
+        "q3": {"best": "model-a"},
+    }}}]
+
+    triplets = _module["extract_triplets_by_category"](
+        responses, survey_path, skip_incomplete=True,
+    )
+
+    assert triplets == {
+        "Accuracy": [("model-a", "model-b", "model-c")],
+        "Clarity": [("model-c", "model-b", "model-a")],
+    }
+    assert _module["rank_overall"](triplets, _module["rank_borda"]) == [
+        {"rank": 1, "model": "model-a", "score": 3.0, "answer_count": 2},
+        {"rank": 2, "model": "model-b", "score": 3.0, "answer_count": 2},
+        {"rank": 3, "model": "model-c", "score": 3.0, "answer_count": 2},
+    ]
+    assert [row["answer_count"] for row in _module["rank_overall"](
+        triplets, _module["rank_plackett_luce"],
+    )] == [2, 2, 2]
+    assert _module["rank_overall"]({}, _module["rank_plackett_luce"]) == []

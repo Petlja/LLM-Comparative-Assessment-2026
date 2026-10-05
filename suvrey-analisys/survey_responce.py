@@ -2,7 +2,7 @@ import json
 from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import fmean
-from typing import Any
+from typing import Any, Callable
 
 
 def load_responses(path: str | Path) -> list[dict[str, Any]]:
@@ -165,16 +165,19 @@ def _fit_plackett_luce(
     return scores
 
 
-def rank_llms_by_category_borda(
+Triplet = tuple[str, str, str]
+RankingRows = list[dict[str, str | int | float]]
+
+
+def extract_triplets_by_category(
     responses: list[dict[str, Any]],
     survey_path: str | Path,
     *,
     skip_incomplete: bool = False,
-) -> dict[str, list[dict[str, str | int | float]]]:
-    """Rank models by mean Borda points per valid appearance: best=5, middle=3, worst=1."""
+) -> dict[str, list[Triplet]]:
+    """Return (best, middle, worst) triplets per category name, in survey order."""
     choices_by_question, category_names = _load_ranking_questions(survey_path)
-    scores_by_category: dict[str, Counter[str]] = defaultdict(Counter)
-    counts_by_category: dict[str, Counter[str]] = defaultdict(Counter)
+    triplets_by_category: dict[str, list[Triplet]] = defaultdict(list)
 
     for response in responses:
         for question_name, answer in response["answers"].items():
@@ -190,32 +193,85 @@ def rank_llms_by_category_borda(
                     if skip_incomplete:
                         continue
                     raise ValueError(f"Invalid ranking in {question_name}, {category_id}.")
-                scores = scores_by_category[category_id]
-                scores[best] += 5
-                scores[middle[0]] += 3
-                scores[worst] += 1
-                counts_by_category[category_id].update((best, middle[0], worst))
+                triplets_by_category[category_id].append((best, middle[0], worst))
 
-    result = {}
-    for category_id, category_name in category_names.items():
-        scores = {
-            model: total / counts_by_category[category_id][model]
-            for model, total in scores_by_category[category_id].items()
+    return {
+        category_name: triplets_by_category[category_id]
+        for category_id, category_name in category_names.items()
+        if triplets_by_category[category_id]
+    }
+
+
+def _ranking_rows(scores: dict[str, float], counts: Counter[str]) -> RankingRows:
+    ordered_models = sorted(scores, key=lambda model: (-scores[model], model))
+    return [
+        {
+            "rank": rank,
+            "model": model,
+            "score": scores[model],
+            "answer_count": counts[model],
         }
-        if not scores:
-            continue
-        ordered_models = sorted(scores, key=lambda model: (-scores[model], model))
-        result[category_name] = [
-            {
-                "rank": rank,
-                "model": model,
-                "score": scores[model],
-                "answer_count": counts_by_category[category_id][model],
-            }
-            for rank, model in enumerate(ordered_models, start=1)
-        ]
+        for rank, model in enumerate(ordered_models, start=1)
+    ]
 
-    return result
+
+def rank_borda(triplets: list[Triplet]) -> RankingRows:
+    """Rank models by mean Borda points per appearance: best=5, middle=3, worst=1."""
+    totals: Counter[str] = Counter()
+    counts: Counter[str] = Counter()
+    for best, middle, worst in triplets:
+        totals.update({best: 5, middle: 3, worst: 1})
+        counts.update((best, middle, worst))
+
+    return _ranking_rows(
+        {model: total / counts[model] for model, total in totals.items()},
+        counts,
+    )
+
+
+def rank_plackett_luce(triplets: list[Triplet]) -> RankingRows:
+    counts = Counter(model for triplet in triplets for model in triplet)
+    if not counts:
+        return []
+    scores = _fit_plackett_luce(triplets, set(counts))
+    return _ranking_rows(
+        {model: round(score, 6) for model, score in scores.items()},
+        counts,
+    )
+
+
+def rank_by_category(
+    triplets_by_category: dict[str, list[Triplet]],
+    rank: Callable[[list[Triplet]], RankingRows],
+) -> dict[str, RankingRows]:
+    return {
+        category: rank(triplets)
+        for category, triplets in triplets_by_category.items()
+    }
+
+
+def rank_overall(
+    triplets_by_category: dict[str, list[Triplet]],
+    rank: Callable[[list[Triplet]], RankingRows],
+) -> RankingRows:
+    """Rank models on the triplets pooled across all categories."""
+    return rank([
+        triplet
+        for triplets in triplets_by_category.values()
+        for triplet in triplets
+    ])
+
+
+def rank_llms_by_category_borda(
+    responses: list[dict[str, Any]],
+    survey_path: str | Path,
+    *,
+    skip_incomplete: bool = False,
+) -> dict[str, RankingRows]:
+    return rank_by_category(
+        extract_triplets_by_category(responses, survey_path, skip_incomplete=skip_incomplete),
+        rank_borda,
+    )
 
 
 def rank_llms_by_category_pl(
@@ -223,44 +279,8 @@ def rank_llms_by_category_pl(
     survey_path: str | Path,
     *,
     skip_incomplete: bool = False,
-) -> dict[str, list[dict[str, str | int | float]]]:
-    choices_by_question, category_names = _load_ranking_questions(survey_path)
-    rankings_by_category: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
-
-    for response in responses:
-        for question_name, answer in response["answers"].items():
-            if question_name not in choices_by_question:
-                continue
-
-            choices = choices_by_question[question_name]
-            for category_id, selection in answer.items():
-                best = selection.get("best")
-                worst = selection.get("worst")
-                middle = [model for model in choices if model not in {best, worst}]
-                if best not in choices or worst not in choices or len(middle) != 1:
-                    if skip_incomplete:
-                        continue
-                    raise ValueError(f"Invalid ranking in {question_name}, {category_id}.")
-                rankings_by_category[category_id].append((best, middle[0], worst))
-
-    result = {}
-    for category_id, category_name in category_names.items():
-        rankings = rankings_by_category[category_id]
-        if not rankings:
-            continue
-        # Partial answers can leave a model unranked in some categories.
-        counts = Counter(model for ranking in rankings for model in ranking)
-        models = set(counts)
-        scores = _fit_plackett_luce(rankings, models)
-        ordered_models = sorted(models, key=lambda model: (-scores[model], model))
-        result[category_name] = [
-            {
-                "rank": rank,
-                "model": model,
-                "score": round(scores[model], 6),
-                "answer_count": counts[model],
-            }
-            for rank, model in enumerate(ordered_models, start=1)
-        ]
-
-    return result
+) -> dict[str, RankingRows]:
+    return rank_by_category(
+        extract_triplets_by_category(responses, survey_path, skip_incomplete=skip_incomplete),
+        rank_plackett_luce,
+    )
