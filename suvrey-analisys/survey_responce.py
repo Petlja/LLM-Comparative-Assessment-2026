@@ -10,6 +10,44 @@ def load_responses(path: str | Path) -> list[dict[str, Any]]:
         return json.load(responses_file)
 
 
+def limit_response_cases(
+    responses: list[dict[str, Any]],
+    survey_path: str | Path,
+    n_cases: int,
+) -> list[dict[str, Any]]:
+    """Keep answers from the first n case pages per group, in survey order."""
+    if n_cases < 0:
+        raise ValueError("n_cases must be non-negative.")
+
+    with open(survey_path, encoding="utf-8") as survey_file:
+        survey = json.load(survey_file)
+
+    cases_by_visibility: Counter[str] = Counter()
+    included_questions: set[str] = set()
+    for page in survey["pages"]:
+        if not any(
+            element.get("type") == "matrixdropdown"
+            for element in page["elements"]
+        ):
+            continue
+        visibility = page.get("visibleIf", "")
+        cases_by_visibility[visibility] += 1
+        if cases_by_visibility[visibility] <= n_cases:
+            included_questions.update(element["name"] for element in page["elements"])
+
+    return [
+        {
+            **response,
+            "answers": {
+                name: answer
+                for name, answer in response["answers"].items()
+                if name in included_questions
+            },
+        }
+        for response in responses
+    ]
+
+
 def average_response_size_by_model(
     output_dir: str | Path,
 ) -> list[dict[str, str | int | float]]:

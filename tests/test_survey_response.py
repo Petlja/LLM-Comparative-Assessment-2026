@@ -184,3 +184,109 @@ def test_overall_ranking_pools_category_triplets(survey_path: Path) -> None:
         triplets, _module["rank_plackett_luce"],
     )] == [2, 2, 2]
     assert _module["rank_overall"]({}, _module["rank_plackett_luce"]) == []
+
+
+@pytest.fixture
+def grouped_survey_path(tmp_path: Path) -> Path:
+    path = tmp_path / "grouped-survey.json"
+    path.write_text(json.dumps({
+        "pages": [
+            {
+                "visibleIf": f"{{group}} = {group}",
+                "elements": [
+                    {
+                        "type": "matrixdropdown",
+                        "name": f"case{case}_group{group}_ranking",
+                        "columns": [{"choices": [
+                            {"value": model} for model in ("a", "b", "c")
+                        ]}],
+                        "rows": [
+                            {"value": f"q{criterion}", "text": f"Criterion {criterion}"}
+                            for criterion in range(6)
+                        ],
+                    },
+                    {"type": "comment", "name": f"case{case}_group{group}_comment"},
+                ],
+            }
+            for case in range(1, 28)
+            for group in (1, 2)
+        ],
+    }), encoding="utf-8")
+    return path
+
+
+def test_limit_cases_caps_each_participant_and_rankings(
+    grouped_survey_path: Path,
+) -> None:
+    responses = [
+        {
+            "label": f"p{participant:02d}",
+            "token": f"token-{participant}",
+            "status": "draft",
+            "last_page": 27,
+            "submitted_at": None,
+            "answers": {
+                f"case{case}_group{group}_ranking": {
+                    f"q{criterion}": {"best": "a", "worst": "c"}
+                    for criterion in range(6)
+                }
+                for case in reversed(range(1, 28))
+            },
+        }
+        for participant, group in enumerate([1, 2] * 6, start=1)
+    ]
+    participants = [
+        {"token": response["token"], "variables": {"group": group}}
+        for response, group in zip(responses, [1, 2] * 6)
+    ]
+
+    limited = _module["limit_response_cases"](responses, grouped_survey_path, 10)
+    summaries = _module["summarize_participants"](
+        limited, participants, grouped_survey_path,
+    )
+    triplets = _module["extract_triplets_by_category"](limited, grouped_survey_path)
+
+    assert len(limited) == len(responses) == 12
+    assert all(row["completed_cases"] == 10 for row in summaries)
+    assert all(row["incomplete_cases"] == 0 for row in summaries)
+    assert all(row["complete_rankings"] == 60 for row in summaries)
+    assert all(len(rankings) == 120 for rankings in triplets.values())
+    assert all(len(response["answers"]) == 27 for response in responses)
+    assert all(response["last_page"] == 27 for response in limited)
+
+
+def test_limit_cases_uses_survey_order_not_answered_order(
+    grouped_survey_path: Path,
+) -> None:
+    responses = [{"answers": {
+        "case12_group2_comment": "Outside the limit",
+        "case11_group2_ranking": {"q0": {"best": "a", "worst": "c"}},
+        "case10_group2_ranking": {"q0": {"best": "a"}},
+        "case10_group2_comment": "Inside the limit",
+    }}]
+
+    limited = _module["limit_response_cases"](responses, grouped_survey_path, 10)
+
+    assert limited[0]["answers"] == {
+        "case10_group2_ranking": {"q0": {"best": "a"}},
+        "case10_group2_comment": "Inside the limit",
+    }
+
+
+@pytest.mark.parametrize("n_cases, expected_count", [(0, 0), (1, 1), (10, 1)])
+def test_limit_cases_ungrouped_survey(
+    survey_path: Path, n_cases: int, expected_count: int,
+) -> None:
+    limited = _module["limit_response_cases"](
+        [{"answers": {"ranking": {"q1": {"best": "model-a", "worst": "model-c"}}}}],
+        survey_path,
+        n_cases,
+    )
+
+    assert len(limited) == 1
+    assert len(limited[0]["answers"]) == expected_count
+
+
+def test_limit_cases_rejects_negative_limit(survey_path: Path) -> None:
+    with pytest.raises(ValueError, match="n_cases must be non-negative"):
+        _module["limit_response_cases"]([], survey_path, -1)

@@ -271,6 +271,11 @@ To rank responses while they are being collected, run
 `/api/responses` from a running Simple Survey instance, includes draft responses
 but skips criteria where best or worst is not yet selected, and reads the survey
 definition from `eval/output/survey.json`.
+Set `n_cases` in the fetch cell (initially `10`) to analyze only the first N case
+pages in each participant group's survey order. All matching participants remain
+included; progress counts and rankings use only answers from those pages.
+The `last_page` column remains the actual page recorded by the API, not a capped
+analysis count.
 Put the connection settings in `suvrey-analisys/live-analisys-config.json`, which is
 ignored by Git:
 
