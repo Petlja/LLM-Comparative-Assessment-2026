@@ -276,6 +276,10 @@ pages in each participant group's survey order. All matching participants remain
 included; progress counts and rankings use only answers from those pages.
 The `last_page` column remains the actual page recorded by the API, not a capped
 analysis count.
+The final notebook section fetches `/api/participant-questions` and displays a
+chronological question timeline for `timeline_participant` (initially `"p07"`).
+Timestamps show the first recorded appearance of each question in saved answers
+in UTC, not completion times. The timeline is not restricted by `n_cases`.
 Put the connection settings in `suvrey-analisys/live-analisys-config.json`, which is
 ignored by Git:
 
