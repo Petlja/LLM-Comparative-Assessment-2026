@@ -4,6 +4,8 @@ from pathlib import Path
 from statistics import fmean
 from typing import Any, Callable
 
+import yaml
+
 
 def load_responses(path: str | Path) -> list[dict[str, Any]]:
     with open(path, encoding="utf-8") as responses_file:
@@ -238,6 +240,50 @@ def extract_triplets_by_category(
         for category_id, category_name in category_names.items()
         if triplets_by_category[category_id]
     }
+
+
+def extract_triplets_by_case_type(
+    responses: list[dict[str, Any]],
+    survey_path: str | Path,
+    cases_path: str | Path,
+    *,
+    skip_incomplete: bool = False,
+) -> dict[str, dict[str, list[Triplet]]]:
+    """Split rankings using case flags; missing inclusive flags mean general."""
+    with open(cases_path, encoding="utf-8") as cases_file:
+        cases = yaml.safe_load(cases_file)
+    inclusive_by_case = {case["case_key"]: case.get("inclusive", False) for case in cases}
+    choices_by_question, _ = _load_ranking_questions(survey_path)
+    questions_by_type: dict[str, set[str]] = {"inclusive": set(), "general": set()}
+    for question in choices_by_question:
+        case_key = question.split("__", maxsplit=1)[0]
+        if case_key not in inclusive_by_case:
+            raise ValueError(f"No case definition for ranking question {question!r}.")
+        case_type = "inclusive" if inclusive_by_case[case_key] else "general"
+        questions_by_type[case_type].add(question)
+
+    triplets_by_type = {
+        case_type: extract_triplets_by_category(
+            [
+                {
+                    **response,
+                    "answers": {
+                        question: answer
+                        for question, answer in response["answers"].items()
+                        if question in questions
+                    },
+                }
+                for response in responses
+            ],
+            survey_path,
+            skip_incomplete=skip_incomplete,
+        )
+        for case_type, questions in questions_by_type.items()
+    }
+    triplets_by_type["total"] = extract_triplets_by_category(
+        responses, survey_path, skip_incomplete=skip_incomplete,
+    )
+    return triplets_by_type
 
 
 def _ranking_rows(scores: dict[str, float], counts: Counter[str]) -> RankingRows:

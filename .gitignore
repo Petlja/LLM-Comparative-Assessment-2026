@@ -1,4 +1,5 @@
 /eval/output
+/eval/final-assesment/
 .venv
 __pycache__
 uv.lock

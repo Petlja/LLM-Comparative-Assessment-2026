@@ -156,6 +156,55 @@ def test_answer_counts_per_model_and_category(survey_path: Path, rank_models) ->
     }
 
 
+@pytest.mark.parametrize("rank_method", [_module["rank_borda"], _module["rank_plackett_luce"]])
+def test_rankings_split_by_inclusive_flag(survey_path: Path, tmp_path: Path, rank_method) -> None:
+    survey = json.loads(survey_path.read_text(encoding="utf-8"))
+    matrix = survey["pages"][0]["elements"][0]
+    survey["pages"] = [
+        {"elements": [{**matrix, "name": f"{case}__0__group-01__ranking"}]}
+        for case in ("TC-001", "TC-002", "TC-003")
+    ]
+    survey_path.write_text(json.dumps(survey), encoding="utf-8")
+    cases_path = tmp_path / "cases.yml"
+    cases_path.write_text(
+        "- case_key: TC-001\n  inclusive: true\n"
+        "- case_key: TC-002\n  inclusive: false\n"
+        "- case_key: TC-003\n",
+        encoding="utf-8",
+    )
+    responses = [{"answers": {
+        "TC-001__0__group-01__ranking": {
+            "q1": {"best": "model-a", "worst": "model-c"},
+            "q2": {"best": "model-a"},
+        },
+        "TC-002__0__group-01__ranking": {
+            "q1": {"best": "model-c", "worst": "model-a"},
+        },
+        "TC-003__0__group-01__ranking": {
+            "q1": {"best": "model-c", "worst": "model-a"},
+        },
+        "comment": "ignored",
+    }}]
+
+    split = _module["extract_triplets_by_case_type"](
+        responses, survey_path, cases_path, skip_incomplete=True,
+    )
+
+    assert list(split) == ["inclusive", "general", "total"]
+    assert [len(split[kind]["Accuracy"]) for kind in split] == [1, 2, 3]
+    assert all("Clarity" not in categories for categories in split.values())
+    assert rank_method(split["inclusive"]["Accuracy"])[0]["model"] == "model-a"
+    assert rank_method(split["general"]["Accuracy"])[0]["model"] == "model-c"
+    assert _module["rank_overall"](split["total"], rank_method)[0]["answer_count"] == 3
+    assert responses[0]["answers"]["TC-001__0__group-01__ranking"]["q2"] == {"best": "model-a"}
+    assert _module["extract_triplets_by_case_type"]([], survey_path, cases_path) == {
+        "inclusive": {}, "general": {}, "total": {},
+    }
+    cases_path.write_text("- case_key: TC-001\n  inclusive: true\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="No case definition"):
+        _module["extract_triplets_by_case_type"]([], survey_path, cases_path)
+
+
 def test_borda_empty_responses(survey_path: Path) -> None:
     assert rank_llms_by_category_borda([], survey_path) == {}
 

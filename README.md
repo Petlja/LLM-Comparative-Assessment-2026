@@ -271,6 +271,10 @@ To rank responses while they are being collected, run
 `/api/responses` from a running Simple Survey instance, includes draft responses
 but skips criteria where best or worst is not yet selected, and reads the survey
 definition from `eval/output/survey.json`.
+Each fetch saves the complete, unfiltered `/api/responses` JSON to
+`eval/final-assesment/responce-YY-MM-DD-hh-mm.json`, using local time and a
+24-hour clock. Fetches in the same minute overwrite that minute's file. The folder
+is ignored by Git; these snapshots include participant tokens and are sensitive.
 Set `n_cases` in the fetch cell (initially `10`) to analyze only the first N case
 pages in each participant group's survey order. All matching participants remain
 included; progress counts and rankings use only answers from those pages.
