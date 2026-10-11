@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
@@ -8,6 +9,7 @@ import pandas as pd
 import pytest
 
 
+@pytest.mark.parametrize("min_completed_cases", [-1, 0, 2, 3, 4])
 @pytest.mark.parametrize("initial_responses", [
     [],
     [{"label": "p01", "answers": {"q1": "Odgovor čćš"}},
@@ -15,10 +17,16 @@ import pytest
 ])
 def test_fetch_saves_raw_responses_and_overwrites_same_minute(
     tmp_path: Path, monkeypatch, initial_responses: list[dict],
+    min_completed_cases: int,
 ) -> None:
     notebook_path = Path(__file__).parents[1] / "suvrey-analisys" / "live-analisys.ipynb"
     notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
     source = "".join(notebook["cells"][2]["source"])
+    source = re.sub(
+        r"(?m)^min_completed_cases = .*",
+        f"min_completed_cases = {min_completed_cases}",
+        source,
+    )
     analysis_dir = tmp_path / "suvrey-analisys"
     analysis_dir.mkdir()
     (analysis_dir / "live-analisys-config.json").write_text(
@@ -30,6 +38,8 @@ def test_fetch_saves_raw_responses_and_overwrites_same_minute(
     participants = [{"label": "p01"}]
     calls = []
     limited_responses = []
+    completed_cases = {"p01": 2, "p02": 3}
+    summarized_responses = []
 
     class FixedDatetime:
         @staticmethod
@@ -42,15 +52,37 @@ def test_fetch_saves_raw_responses_and_overwrites_same_minute(
         data = participants if request.full_url.endswith("/api/participants/") else raw_responses
         return StringIO(json.dumps(data))
 
-    def limit_response_cases(responses, survey_path, n_cases):
+    def limit_response_cases(responses, survey_path, n_cases, *, min_cases):
+        assert min_cases == 1
+        assert n_cases == 99
         limited_responses.append(responses)
         return []
+
+    def summarize_participants(responses, participant_data, survey_path):
+        assert participant_data == participants
+        assert responses == [
+            response for response in raw_responses
+            if response["label"].startswith("p")
+        ]
+        assert len(summarized_responses) == len(limited_responses)
+        summarized_responses.append(responses)
+        return [
+            {"completed_cases": completed_cases[response["label"]]}
+            for response in responses
+        ]
 
     namespace = {
         "json": json, "datetime": FixedDatetime, "Path": Path, "pd": pd,
         "Request": Request, "urlopen": urlopen,
         "limit_response_cases": limit_response_cases,
+        "summarize_participants": summarize_participants,
     }
+    if min_completed_cases < 0:
+        with pytest.raises(ValueError, match="min_completed_cases must be non-negative"):
+            exec(compile(source, "live-analisys.ipynb:fetch", "exec"), namespace)
+        assert calls == []
+        return
+
     for data in [initial_responses, [{"label": "p02", "answers": {"q2": "updated"}}]]:
         raw_responses = data
         exec(compile(source, "live-analisys.ipynb:fetch", "exec"), namespace)
@@ -63,8 +95,10 @@ def test_fetch_saves_raw_responses_and_overwrites_same_minute(
         assert namespace["participants"] == participants
         assert limited_responses[-1] == [
             response for response in data if response["label"].startswith("p")
+            and completed_cases[response["label"]] >= min_completed_cases
         ]
     assert calls == ["http://localhost/api/responses", "http://localhost/api/participants/"] * 2
+    assert len(summarized_responses) == (2 if min_completed_cases > 0 else 0)
 
 
 @pytest.fixture
@@ -73,7 +107,11 @@ def timeline_cell() -> str:
         Path(__file__).parents[1] / "suvrey-analisys" / "live-analisys.ipynb"
     )
     notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
-    cell = notebook["cells"][-1]
+    cell = next(
+        cell for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+        and "".join(cell["source"]).startswith("timeline_participant =")
+    )
     assert cell["cell_type"] == "code"
     return "".join(cell["source"])
 
@@ -199,6 +237,18 @@ def test_ranking_datasets_include_case_type_columns(
 
     exec(compile(source, "live-analisys.ipynb:rankings", "exec"), namespace)
 
+    comparison_source = (
+        'comparison_models = ("a", "b")\n'
+        + "".join(notebook["cells"][-1]["source"]).split("\n", 1)[1]
+    )
+    comparison_namespace = {**namespace, "display": lambda output: None}
+    exec(compile(comparison_source, "live-analisys.ipynb:head-to-head", "exec"), comparison_namespace)
+    assert comparison_namespace["overall_head_to_head"].to_dict("list") == {
+        "wins_total": [int("TC-001" in case_keys), int("TC-004" in case_keys)],
+        "wins_inclusive": [int("TC-001" in case_keys), 0],
+        "wins_general": [0, int("TC-004" in case_keys)],
+    }
+
     overall = namespace["overall_rankings"]
     assert overall.index.name == "rank_total"
     assert list(overall.columns) == [
@@ -232,3 +282,133 @@ def test_ranking_datasets_include_case_type_columns(
                 assert dataset[f"rank_{kind}"].isna().all()
                 assert dataset[f"score_{kind}"].isna().all()
                 assert (dataset[f"answer_count_{kind}"] == 0).all()
+
+
+@pytest.fixture
+def head_to_head_cell() -> str:
+    notebook_path = Path(__file__).parents[1] / "suvrey-analisys" / "live-analisys.ipynb"
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    return (
+        'comparison_models = ("Qwen/Qwen3-14B", "Qwen/Qwen3-32B")\n'
+        + "".join(notebook["cells"][-1]["source"]).split("\n", 1)[1]
+    )
+
+
+def run_head_to_head(cell: str, inclusive: dict, general: dict) -> dict:
+    import matplotlib
+
+    matplotlib.use("Agg")
+
+    categories = dict.fromkeys([*inclusive, *general])
+    total = {
+        category: inclusive.get(category, []) + general.get(category, [])
+        for category in categories
+    }
+    displayed = []
+    namespace = {
+        "pd": pd, "Markdown": str, "display": displayed.append,
+        "triplets_by_case_type": {
+            "total": total, "inclusive": inclusive, "general": general,
+        },
+    }
+    exec(compile(cell, "live-analisys.ipynb:head-to-head", "exec"), namespace)
+    namespace["displayed"] = displayed
+    return namespace
+
+
+def test_head_to_head_counts_relative_order_and_excludes_indirect_comparisons(
+    head_to_head_cell: str,
+) -> None:
+    from itertools import permutations
+
+    model_a, model_b = "Qwen/Qwen3-14B", "Qwen/Qwen3-32B"
+    direct = list(permutations([model_a, model_b, "other"]))
+    namespace = run_head_to_head(
+        head_to_head_cell,
+        {"Accuracy": direct[:3] + [
+            (model_a, "other", "third"),
+            ("other", model_b, "third"),
+            ("other", "third", "fourth"),
+        ]},
+        {"Accuracy": direct[3:], "Clarity": [("other", model_b, model_a)]},
+    )
+
+    accuracy = namespace["head_to_head_by_category"]["Accuracy"]
+    assert accuracy.index.tolist() == [model_a, model_b]
+    assert accuracy.to_dict("list") == {
+        "wins_total": [3, 3], "wins_inclusive": [2, 1], "wins_general": [1, 2],
+    }
+    clarity = namespace["head_to_head_by_category"]["Clarity"]
+    assert clarity.to_dict("list") == {
+        "wins_total": [0, 1], "wins_inclusive": [0, 0], "wins_general": [0, 1],
+    }
+    overall = namespace["overall_head_to_head"]
+    assert overall.to_dict("list") == {
+        "wins_total": [3, 4], "wins_inclusive": [2, 1], "wins_general": [1, 3],
+    }
+    assert overall["wins_total"].equals(overall["wins_inclusive"] + overall["wins_general"])
+    assert namespace["displayed"][::2] == ["### Accuracy", "### Clarity", "### Overall"]
+    for dataset, output in zip(
+        [accuracy, clarity, overall], namespace["displayed"][1::2],
+    ):
+        from matplotlib.colors import to_rgba
+
+        assert len(output.axes) == 3
+        colors = {model_a: to_rgba("tab:blue"), model_b: to_rgba("tab:orange")}
+        for case_type, axis in zip(
+            ("total", "inclusive", "general"), output.axes,
+        ):
+            wins = dataset[f"wins_{case_type}"].sort_values(
+                ascending=False, kind="stable",
+            )
+            assert axis.get_title() == f"{case_type.title()} ({wins.sum()} comparisons)"
+            if wins.sum() == 0:
+                assert not axis.patches
+                assert [text.get_text() for text in axis.texts] == ["No direct comparisons"]
+                continue
+            assert [text.get_text() for text in axis.get_legend().get_texts()] == [
+                f"{model}: {count} wins" for model, count in wins.items()
+            ]
+            for wedge, (model, count) in zip(axis.patches, wins.items()):
+                assert wedge.theta2 - wedge.theta1 == pytest.approx(
+                    360 * count / wins.sum(), abs=0.001,
+                )
+                assert wedge.get_facecolor() == colors[model]
+            assert [text.get_text() for text in axis.texts if text.get_text()] == [
+                f"{100 * count / wins.sum():.1f}%" for count in wins if count > 0
+            ]
+
+    assert not namespace["plt"].get_fignums()
+
+    reversed_models = namespace["head_to_head_dataset"](
+        {"total": direct, "inclusive": [], "general": direct},
+        (model_b, model_a),
+    )
+    assert reversed_models.index.tolist() == [model_b, model_a]
+    assert reversed_models["wins_total"].tolist() == [3, 3]
+    with pytest.raises(ValueError, match="two distinct models"):
+        namespace["head_to_head_dataset"](
+            {"total": [], "inclusive": [], "general": []}, (model_a, model_a),
+        )
+
+
+@pytest.mark.parametrize("inclusive", [
+    {},
+    {"Accuracy": [("Qwen/Qwen3-14B", "other", "third")]},
+])
+def test_head_to_head_reports_no_direct_comparisons(
+    head_to_head_cell: str, inclusive: dict,
+) -> None:
+    namespace = run_head_to_head(head_to_head_cell, inclusive, {})
+
+    assert namespace["overall_head_to_head"].to_dict("list") == {
+        "wins_total": [0, 0], "wins_inclusive": [0, 0], "wins_general": [0, 0],
+    }
+    assert namespace["displayed"][-1] == (
+        "No complete rankings directly comparing the selected models yet."
+    )
+    for figure in namespace["displayed"][1:-1:2]:
+        assert len(figure.axes) == 3
+        for axis in figure.axes:
+            assert not axis.patches
+            assert [text.get_text() for text in axis.texts] == ["No direct comparisons"]

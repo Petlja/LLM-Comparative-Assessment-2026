@@ -1,8 +1,9 @@
 import json
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from statistics import fmean
-from typing import Any, Callable
+from typing import Any, Callable, Literal, TypeVar
 
 import yaml
 
@@ -16,10 +17,16 @@ def limit_response_cases(
     responses: list[dict[str, Any]],
     survey_path: str | Path,
     n_cases: int,
+    *,
+    min_cases: int = 1,
 ) -> list[dict[str, Any]]:
-    """Keep answers from the first n case pages per group, in survey order."""
+    """Keep inclusive 1-based case positions per group; n_cases=0 keeps none."""
     if n_cases < 0:
         raise ValueError("n_cases must be non-negative.")
+    if min_cases < 1:
+        raise ValueError("min_cases must be at least 1.")
+    if n_cases > 0 and min_cases > n_cases:
+        raise ValueError("min_cases must not exceed n_cases.")
 
     with open(survey_path, encoding="utf-8") as survey_file:
         survey = json.load(survey_file)
@@ -34,7 +41,7 @@ def limit_response_cases(
             continue
         visibility = page.get("visibleIf", "")
         cases_by_visibility[visibility] += 1
-        if cases_by_visibility[visibility] <= n_cases:
+        if min_cases <= cases_by_visibility[visibility] <= n_cases:
             included_questions.update(element["name"] for element in page["elements"])
 
     return [
@@ -207,17 +214,26 @@ def _fit_plackett_luce(
 
 Triplet = tuple[str, str, str]
 RankingRows = list[dict[str, str | int | float]]
+RankingMethod = Literal["borda", "plackett_luce", "stratified_borda"]
+RankingItem = TypeVar("RankingItem")
 
 
-def extract_triplets_by_category(
+@dataclass(frozen=True)
+class RankingObservation:
+    question_name: str
+    category_id: str
+    triplet: Triplet
+
+
+def extract_observations_by_category(
     responses: list[dict[str, Any]],
     survey_path: str | Path,
     *,
     skip_incomplete: bool = False,
-) -> dict[str, list[Triplet]]:
-    """Return (best, middle, worst) triplets per category name, in survey order."""
+) -> dict[str, list[RankingObservation]]:
+    """Return rankings per category name, retaining matrix and row IDs."""
     choices_by_question, category_names = _load_ranking_questions(survey_path)
-    triplets_by_category: dict[str, list[Triplet]] = defaultdict(list)
+    observations_by_category: dict[str, list[RankingObservation]] = defaultdict(list)
 
     for response in responses:
         for question_name, answer in response["answers"].items():
@@ -233,22 +249,24 @@ def extract_triplets_by_category(
                     if skip_incomplete:
                         continue
                     raise ValueError(f"Invalid ranking in {question_name}, {category_id}.")
-                triplets_by_category[category_id].append((best, middle[0], worst))
+                observations_by_category[category_id].append(
+                    RankingObservation(question_name, category_id, (best, middle[0], worst))
+                )
 
     return {
-        category_name: triplets_by_category[category_id]
+        category_name: observations_by_category[category_id]
         for category_id, category_name in category_names.items()
-        if triplets_by_category[category_id]
+        if observations_by_category[category_id]
     }
 
 
-def extract_triplets_by_case_type(
+def extract_observations_by_case_type(
     responses: list[dict[str, Any]],
     survey_path: str | Path,
     cases_path: str | Path,
     *,
     skip_incomplete: bool = False,
-) -> dict[str, dict[str, list[Triplet]]]:
+) -> dict[str, dict[str, list[RankingObservation]]]:
     """Split rankings using case flags; missing inclusive flags mean general."""
     with open(cases_path, encoding="utf-8") as cases_file:
         cases = yaml.safe_load(cases_file)
@@ -262,31 +280,64 @@ def extract_triplets_by_case_type(
         case_type = "inclusive" if inclusive_by_case[case_key] else "general"
         questions_by_type[case_type].add(question)
 
-    triplets_by_type = {
-        case_type: extract_triplets_by_category(
-            [
-                {
-                    **response,
-                    "answers": {
-                        question: answer
-                        for question, answer in response["answers"].items()
-                        if question in questions
-                    },
-                }
-                for response in responses
-            ],
-            survey_path,
-            skip_incomplete=skip_incomplete,
-        )
-        for case_type, questions in questions_by_type.items()
-    }
-    triplets_by_type["total"] = extract_triplets_by_category(
+    observations_by_category = extract_observations_by_category(
         responses, survey_path, skip_incomplete=skip_incomplete,
     )
-    return triplets_by_type
+    observations_by_type: dict[str, dict[str, list[RankingObservation]]] = {}
+    for case_type, questions in questions_by_type.items():
+        categories = {}
+        for category, observations in observations_by_category.items():
+            selected = [
+                observation for observation in observations
+                if observation.question_name in questions
+            ]
+            if selected:
+                categories[category] = selected
+        observations_by_type[case_type] = categories
+    observations_by_type["total"] = observations_by_category
+    return observations_by_type
 
 
-def _ranking_rows(scores: dict[str, float], counts: Counter[str]) -> RankingRows:
+def extract_triplets_by_category(
+    responses: list[dict[str, Any]],
+    survey_path: str | Path,
+    *,
+    skip_incomplete: bool = False,
+) -> dict[str, list[Triplet]]:
+    """Return (best, middle, worst) triplets per category name, in survey order."""
+    return {
+        category: [observation.triplet for observation in observations]
+        for category, observations in extract_observations_by_category(
+            responses, survey_path, skip_incomplete=skip_incomplete,
+        ).items()
+    }
+
+
+def extract_triplets_by_case_type(
+    responses: list[dict[str, Any]],
+    survey_path: str | Path,
+    cases_path: str | Path,
+    *,
+    skip_incomplete: bool = False,
+) -> dict[str, dict[str, list[Triplet]]]:
+    """Split rankings using case flags; missing inclusive flags mean general."""
+    return {
+        case_type: {
+            category: [observation.triplet for observation in observations]
+            for category, observations in categories.items()
+        }
+        for case_type, categories in extract_observations_by_case_type(
+            responses, survey_path, cases_path, skip_incomplete=skip_incomplete,
+        ).items()
+    }
+
+
+def _ranking_rows(
+    scores: dict[str, float],
+    counts: Counter[str],
+    *,
+    stratum_counts: Counter[str] | None = None,
+) -> RankingRows:
     ordered_models = sorted(scores, key=lambda model: (-scores[model], model))
     return [
         {
@@ -294,22 +345,50 @@ def _ranking_rows(scores: dict[str, float], counts: Counter[str]) -> RankingRows
             "model": model,
             "score": scores[model],
             "answer_count": counts[model],
+            **({"stratum_count": stratum_counts[model]} if stratum_counts is not None else {}),
         }
         for rank, model in enumerate(ordered_models, start=1)
     ]
 
 
-def rank_borda(triplets: list[Triplet]) -> RankingRows:
-    """Rank models by mean Borda points per appearance: best=5, middle=3, worst=1."""
+def _borda_totals(triplets: list[Triplet]) -> tuple[Counter[str], Counter[str]]:
     totals: Counter[str] = Counter()
     counts: Counter[str] = Counter()
     for best, middle, worst in triplets:
         totals.update({best: 5, middle: 3, worst: 1})
         counts.update((best, middle, worst))
+    return totals, counts
 
+
+def rank_borda(triplets: list[Triplet]) -> RankingRows:
+    """Rank models by mean Borda points per appearance: best=5, middle=3, worst=1."""
+    totals, counts = _borda_totals(triplets)
     return _ranking_rows(
         {model: total / counts[model] for model, total in totals.items()},
         counts,
+    )
+
+
+def rank_stratified_borda(observations: list[RankingObservation]) -> RankingRows:
+    """Average 5/3/1 Borda means equally across observed matrix-row strata per model."""
+    strata: dict[tuple[str, str], list[Triplet]] = defaultdict(list)
+    for observation in observations:
+        strata[observation.question_name, observation.category_id].append(observation.triplet)
+
+    mean_totals: dict[str, float] = defaultdict(float)
+    answer_counts: Counter[str] = Counter()
+    stratum_counts: Counter[str] = Counter()
+    for triplets in strata.values():
+        totals, counts = _borda_totals(triplets)
+        for model, total in totals.items():
+            mean_totals[model] += total / counts[model]
+            stratum_counts[model] += 1
+        answer_counts.update(counts)
+
+    return _ranking_rows(
+        {model: total / stratum_counts[model] for model, total in mean_totals.items()},
+        answer_counts,
+        stratum_counts=stratum_counts,
     )
 
 
@@ -324,9 +403,23 @@ def rank_plackett_luce(triplets: list[Triplet]) -> RankingRows:
     )
 
 
+def rank_observations(
+    observations: list[RankingObservation],
+    method: RankingMethod = "borda",
+) -> RankingRows:
+    """Apply a ranking method without discarding stratum identity prematurely."""
+    if method == "stratified_borda":
+        return rank_stratified_borda(observations)
+    if method == "borda":
+        return rank_borda([observation.triplet for observation in observations])
+    if method == "plackett_luce":
+        return rank_plackett_luce([observation.triplet for observation in observations])
+    raise ValueError(f"Unknown ranking method: {method!r}.")
+
+
 def rank_by_category(
-    triplets_by_category: dict[str, list[Triplet]],
-    rank: Callable[[list[Triplet]], RankingRows],
+    triplets_by_category: dict[str, list[RankingItem]],
+    rank: Callable[[list[RankingItem]], RankingRows],
 ) -> dict[str, RankingRows]:
     return {
         category: rank(triplets)
@@ -335,10 +428,10 @@ def rank_by_category(
 
 
 def rank_overall(
-    triplets_by_category: dict[str, list[Triplet]],
-    rank: Callable[[list[Triplet]], RankingRows],
+    triplets_by_category: dict[str, list[RankingItem]],
+    rank: Callable[[list[RankingItem]], RankingRows],
 ) -> RankingRows:
-    """Rank models on the triplets pooled across all categories."""
+    """Rank models on rankings pooled across categories, retaining any metadata."""
     return rank([
         triplet
         for triplets in triplets_by_category.values()
@@ -367,4 +460,18 @@ def rank_llms_by_category_pl(
     return rank_by_category(
         extract_triplets_by_category(responses, survey_path, skip_incomplete=skip_incomplete),
         rank_plackett_luce,
+    )
+
+
+def rank_llms_by_category_stratified_borda(
+    responses: list[dict[str, Any]],
+    survey_path: str | Path,
+    *,
+    skip_incomplete: bool = False,
+) -> dict[str, RankingRows]:
+    return rank_by_category(
+        extract_observations_by_category(
+            responses, survey_path, skip_incomplete=skip_incomplete,
+        ),
+        rank_stratified_borda,
     )

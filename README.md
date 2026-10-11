@@ -38,7 +38,7 @@ The shared package is consumed as an editable dependency from the sibling checko
 | `llmcmp survey` | Build this round's balanced three-model SurveyJS survey | This repository |
 | `survey-preview` | Serve a generated survey in a temporary local Simple Survey instance | Simple Survey dependency |
 | `llmcmp test_survey` | Submit synthetic responses through Chromium and verify the API result | This repository |
-| `suvrey-analisys/*.py` | Calculate Plackett-Luce rankings, Borda rankings (5/3/1 average points per model appearance), and response-size summaries | This repository |
+| `suvrey-analisys/*.py` | Calculate Plackett-Luce, Borda, and matrix-row-stratified Borda rankings, and response-size summaries | This repository |
 
 The shared CLI also has a generic `plcmp survey` command. Do not use it for the 2026
 round: `llmcmp survey` implements this assessment's triplet assignment, presentation,
@@ -260,7 +260,7 @@ interactively. The supporting
 [`survey_responce.py`](suvrey-analisys/survey_responce.py) module:
 
 - reconstructs best-middle-worst rankings from each triplet response;
-- fits per-criterion Plackett-Luce model scores; and
+- calculates per-criterion and overall Borda, stratified Borda, or Plackett-Luce scores; and
 - summarizes average raw response size by model.
 
 The default setup reads the synthetic files under `eval/output`; change it before
@@ -271,6 +271,35 @@ To rank responses while they are being collected, run
 `/api/responses` from a running Simple Survey instance, includes draft responses
 but skips criteria where best or worst is not yet selected, and reads the survey
 definition from `eval/output/survey.json`.
+Set `ranking_method` in the ranking cell to `"borda"` (the unchanged default),
+`"plackett_luce"`, or `"stratified_borda"`. All three methods support the category,
+Overall, Total, Inclusive, and General views.
+
+Borda assigns 5/3/1 points to best/middle/worst and averages per model appearance.
+Stratified Borda first averages those points within each
+`(matrix question name, category ID)` stratum, then averages the stratum means
+equally for each model. The matrix name includes the case, variant, and participant
+group; its category ID identifies the individual row. For example, 20 answers
+averaging 5 points in one stratum and 2 answers averaging 1 in another yield
+3.0 stratified points, rather than ordinary Borda's 102/22.
+Unanswered strata and strata not containing a model are excluded from that model's
+denominator. `answer_count` still counts individual valid rankings;
+`stratum_count`, returned only by stratified Borda, counts contributing strata.
+Overall pools matrix-row strata directly, rather than averaging category scores.
+Equal stratum weighting does not guarantee equal case weighting when coverage or
+category counts differ, and does not adjust for opponent strength.
+
+For Python callers, `extract_observations_by_category` and
+`extract_observations_by_case_type` preserve the matrix and row IDs in immutable
+`RankingObservation` records. Pass these to `rank_stratified_borda`, or use
+`rank_observations(observations, method=...)` with any of the three methods.
+`rank_by_category` and `rank_overall` accept either observations with a matching
+ranker or the original triplets. Existing triplet extraction functions, rankers,
+and convenience functions remain supported;
+`rank_llms_by_category_stratified_borda` provides the new response-level shortcut.
+The notebook's head-to-head section continues counting individual triplets,
+independently of the selected ranking method.
+
 Each fetch saves the complete, unfiltered `/api/responses` JSON to
 `eval/final-assesment/responce-YY-MM-DD-hh-mm.json`, using local time and a
 24-hour clock. Fetches in the same minute overwrite that minute's file. The folder
@@ -280,10 +309,33 @@ pages in each participant group's survey order. All matching participants remain
 included; progress counts and rankings use only answers from those pages.
 The `last_page` column remains the actual page recorded by the API, not a capped
 analysis count.
-The final notebook section fetches `/api/participant-questions` and displays a
+Category rankings and Overall use side-by-side Total, Inclusive, and General
+horizontal bar charts in one figure per category, with a shared model-color legend
+below the three panels. Each panel is ordered by rank with the highest-ranked model
+at the top; models are identified in the legend rather than repeated beside bars.
+Bars show scores rounded to three decimals, without rank numbers or score-axis labels.
+Answer and stratum counts are not shown; the underlying ranking datasets retain
+answer counts, stratum counts when applicable, and original score precision.
+The three panels in each figure share a zero-based score scale ending 15% above
+that figure's largest score, leaving room for labels without excessive empty space.
+Model colors are shared with the head-to-head charts: GPT is teal, base Qwen
+models are purple (darker for 32B), fine-tuned Qwen is orange, and Llama is blue.
+Additional model names receive deterministic colors from Matplotlib's `tab20` palette.
+The question timeline section fetches `/api/participant-questions` and displays a
 chronological question timeline for `timeline_participant` (initially `"p07"`).
 Timestamps show the first recorded appearance of each question in saved answers
 in UTC, not completion times. The timeline is not restricted by `n_cases`.
+The final section compares two configurable models (initially `Qwen/Qwen3-14B`
+and `Qwen/Qwen3-32B`) by head-to-head win counts. Only complete criterion rankings
+containing both models in the same triplet count; whichever is ranked higher wins.
+It shows Total, Inclusive, and General pie charts side by side for each category and
+Overall, with percentages and win counts, using the same filtered responses as the
+ranking section. Slices and legends are ordered by wins from highest to lowest
+(ties keep the configured model order), with consistent colors per model.
+Overall pools
+comparisons across categories, so a triplet can contribute once per answered
+criterion. Groups with no direct comparisons show a message instead of a pie.
+The charts use Matplotlib, included in the development dependencies.
 Put the connection settings in `suvrey-analisys/live-analisys-config.json`, which is
 ignored by Git:
 

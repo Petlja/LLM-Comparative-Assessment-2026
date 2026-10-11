@@ -16,7 +16,7 @@ dependencies = [
 llmcmp = "llm_assessment_2026.llmcmp:main"
 
 [dependency-groups]
-dev = ["ipykernel", "pandas", "pytest"]
+dev = ["ipykernel", "matplotlib", "pandas", "pytest"]
 
 [tool.uv]
 package = true
