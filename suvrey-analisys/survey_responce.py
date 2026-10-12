@@ -1,4 +1,5 @@
 import json
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -220,9 +221,17 @@ RankingItem = TypeVar("RankingItem")
 
 @dataclass(frozen=True)
 class RankingObservation:
-    question_name: str
+    case_key: str
+    group: int
     category_id: str
     triplet: Triplet
+
+
+def _ranking_question_identity(question_name: str) -> tuple[str, int]:
+    match = re.fullmatch(r"(.+)__0__group-([0-9]+)__ranking", question_name)
+    if match is None:
+        raise ValueError(f"Invalid ranking question name: {question_name!r}.")
+    return match[1], int(match[2])
 
 
 def extract_observations_by_category(
@@ -231,7 +240,7 @@ def extract_observations_by_category(
     *,
     skip_incomplete: bool = False,
 ) -> dict[str, list[RankingObservation]]:
-    """Return rankings per category name, retaining matrix and row IDs."""
+    """Return rankings per category name, retaining case, group, and row IDs."""
     choices_by_question, category_names = _load_ranking_questions(survey_path)
     observations_by_category: dict[str, list[RankingObservation]] = defaultdict(list)
 
@@ -240,6 +249,7 @@ def extract_observations_by_category(
             if question_name not in choices_by_question:
                 continue
 
+            case_key, group = _ranking_question_identity(question_name)
             choices = choices_by_question[question_name]
             for category_id, selection in answer.items():
                 best = selection.get("best")
@@ -250,7 +260,7 @@ def extract_observations_by_category(
                         continue
                     raise ValueError(f"Invalid ranking in {question_name}, {category_id}.")
                 observations_by_category[category_id].append(
-                    RankingObservation(question_name, category_id, (best, middle[0], worst))
+                    RankingObservation(case_key, group, category_id, (best, middle[0], worst))
                 )
 
     return {
@@ -272,24 +282,24 @@ def extract_observations_by_case_type(
         cases = yaml.safe_load(cases_file)
     inclusive_by_case = {case["case_key"]: case.get("inclusive", False) for case in cases}
     choices_by_question, _ = _load_ranking_questions(survey_path)
-    questions_by_type: dict[str, set[str]] = {"inclusive": set(), "general": set()}
+    cases_by_type: dict[str, set[str]] = {"inclusive": set(), "general": set()}
     for question in choices_by_question:
-        case_key = question.split("__", maxsplit=1)[0]
+        case_key, _ = _ranking_question_identity(question)
         if case_key not in inclusive_by_case:
             raise ValueError(f"No case definition for ranking question {question!r}.")
         case_type = "inclusive" if inclusive_by_case[case_key] else "general"
-        questions_by_type[case_type].add(question)
+        cases_by_type[case_type].add(case_key)
 
     observations_by_category = extract_observations_by_category(
         responses, survey_path, skip_incomplete=skip_incomplete,
     )
     observations_by_type: dict[str, dict[str, list[RankingObservation]]] = {}
-    for case_type, questions in questions_by_type.items():
+    for case_type, case_keys in cases_by_type.items():
         categories = {}
         for category, observations in observations_by_category.items():
             selected = [
                 observation for observation in observations
-                if observation.question_name in questions
+                if observation.case_key in case_keys
             ]
             if selected:
                 categories[category] = selected
@@ -370,10 +380,10 @@ def rank_borda(triplets: list[Triplet]) -> RankingRows:
 
 
 def rank_stratified_borda(observations: list[RankingObservation]) -> RankingRows:
-    """Average 5/3/1 Borda means equally across observed matrix-row strata per model."""
-    strata: dict[tuple[str, str], list[Triplet]] = defaultdict(list)
+    """Pool rankings within cases, then average 5/3/1 case means equally per model."""
+    strata: dict[str, list[Triplet]] = defaultdict(list)
     for observation in observations:
-        strata[observation.question_name, observation.category_id].append(observation.triplet)
+        strata[observation.case_key].append(observation.triplet)
 
     mean_totals: dict[str, float] = defaultdict(float)
     answer_counts: Counter[str] = Counter()

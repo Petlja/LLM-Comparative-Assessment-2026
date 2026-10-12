@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from functools import partial
 from pathlib import Path
 from runpy import run_path
@@ -22,7 +23,7 @@ def survey_path(tmp_path: Path) -> Path:
     path.write_text(json.dumps({
         "pages": [{"elements": [{
             "type": "matrixdropdown",
-            "name": "ranking",
+            "name": "TC-006__0__group-10__ranking",
             "columns": [{"choices": [
                 {"value": model} for model in ("model-c", "model-b", "model-a")
             ]}],
@@ -36,16 +37,62 @@ def survey_path(tmp_path: Path) -> Path:
     return path
 
 
+@pytest.mark.parametrize("group", [1, 10])
+def test_observations_extract_case_and_group(survey_path: Path, group: int) -> None:
+    survey = json.loads(survey_path.read_text(encoding="utf-8"))
+    question = f"TC-006__0__group-{group:02d}__ranking"
+    survey["pages"][0]["elements"][0]["name"] = question
+    survey_path.write_text(json.dumps(survey), encoding="utf-8")
+    responses = [{"answers": {
+        question: {"q1": {"best": "model-a", "worst": "model-c"}},
+        "comment": "Ignored",
+    }}]
+
+    observations = _module["extract_observations_by_category"](responses, survey_path)
+
+    assert list(observations) == ["Accuracy"]
+    assert [asdict(observation) for observation in observations["Accuracy"]] == [{
+        "case_key": "TC-006",
+        "group": group,
+        "category_id": "q1",
+        "triplet": ("model-a", "model-b", "model-c"),
+    }]
+
+
+@pytest.mark.parametrize("question", [
+    "ranking",
+    "TC-006__0__ranking",
+    "TC-006__0__group-ten__ranking",
+    "TC-006__1__group-10__ranking",
+    "TC-006__0__group-10__comment",
+])
+@pytest.mark.parametrize("skip_incomplete", [False, True])
+def test_observations_reject_invalid_question_names(
+    survey_path: Path, question: str, skip_incomplete: bool,
+) -> None:
+    survey = json.loads(survey_path.read_text(encoding="utf-8"))
+    survey["pages"][0]["elements"][0]["name"] = question
+    survey_path.write_text(json.dumps(survey), encoding="utf-8")
+    responses = [{"answers": {
+        question: {"q1": {"best": "model-a", "worst": "model-c"}},
+    }}]
+
+    with pytest.raises(ValueError, match="Invalid ranking question name"):
+        _module["extract_observations_by_category"](
+            responses, survey_path, skip_incomplete=skip_incomplete,
+        )
+
+
 def test_borda_averages_categories_and_ties(survey_path: Path) -> None:
     responses = [
         {"answers": {
             "comment": "Ignored",
-            "ranking": {
+            "TC-006__0__group-10__ranking": {
                 "q1": {"best": "model-a", "worst": "model-c"},
                 "q2": {"best": "model-c", "worst": "model-a"},
             },
         }},
-        {"answers": {"ranking": {
+        {"answers": {"TC-006__0__group-10__ranking": {
             "q1": {"best": "model-b", "worst": "model-c"},
         }}},
     ]
@@ -72,12 +119,12 @@ def test_borda_averages_categories_and_ties(survey_path: Path) -> None:
     {"best": "unknown", "worst": "model-c"},
 ])
 def test_borda_invalid_rankings(survey_path: Path, selection: dict[str, str]) -> None:
-    responses = [{"answers": {"ranking": {
+    responses = [{"answers": {"TC-006__0__group-10__ranking": {
         "q1": selection,
         "q2": {"best": "model-a", "worst": "model-c"},
     }}}]
 
-    with pytest.raises(ValueError, match="Invalid ranking in ranking, q1"):
+    with pytest.raises(ValueError, match="Invalid ranking in TC-006__0__group-10__ranking, q1"):
         rank_llms_by_category_borda(responses, survey_path)
 
     assert rank_llms_by_category_borda(
@@ -94,23 +141,23 @@ def test_borda_averages_per_model_appearance(survey_path: Path) -> None:
     matrix = survey["pages"][0]["elements"][0]
     survey["pages"].append({"elements": [{
         **matrix,
-        "name": "other_ranking",
+        "name": "TC-007__0__group-10__ranking",
         "columns": [{"choices": [
             {"value": model} for model in ("model-a", "model-b", "model-d")
         ]}],
     }]})
     survey_path.write_text(json.dumps(survey), encoding="utf-8")
     responses = [
-        {"answers": {"ranking": {
+        {"answers": {"TC-006__0__group-10__ranking": {
             "q1": {"best": "model-a", "worst": "model-c"},
         }}},
-        {"answers": {"ranking": {
+        {"answers": {"TC-006__0__group-10__ranking": {
             "q1": {"best": "model-a", "worst": "model-c"},
         }}},
-        {"answers": {"other_ranking": {
+        {"answers": {"TC-007__0__group-10__ranking": {
             "q1": {"best": "model-d", "worst": "model-a"},
         }}},
-        {"answers": {"ranking": {"q1": {"best": "model-a"}}}},
+        {"answers": {"TC-006__0__group-10__ranking": {"q1": {"best": "model-a"}}}},
     ]
 
     assert rank_llms_by_category_borda(
@@ -132,18 +179,18 @@ def test_answer_counts_per_model_and_category(survey_path: Path, rank_models) ->
     matrix = survey["pages"][0]["elements"][0]
     survey["pages"].append({"elements": [{
         **matrix,
-        "name": "other_ranking",
+        "name": "TC-007__0__group-10__ranking",
         "columns": [{"choices": [
             {"value": model} for model in ("model-a", "model-b", "model-d")
         ]}],
     }]})
     survey_path.write_text(json.dumps(survey), encoding="utf-8")
     responses = [{"answers": {
-        "ranking": {
+        "TC-006__0__group-10__ranking": {
             "q1": {"best": "model-a", "worst": "model-c"},
             "q2": {"best": "model-c", "worst": "model-a"},
         },
-        "other_ranking": {
+        "TC-007__0__group-10__ranking": {
             "q1": {"best": "model-d", "worst": "model-a"},
             "q2": {"best": "model-d"},
         },
@@ -214,7 +261,7 @@ def test_borda_empty_responses(survey_path: Path) -> None:
 
 
 def test_overall_ranking_pools_category_triplets(survey_path: Path) -> None:
-    responses = [{"answers": {"ranking": {
+    responses = [{"answers": {"TC-006__0__group-10__ranking": {
         "q1": {"best": "model-a", "worst": "model-c"},
         "q2": {"best": "model-c", "worst": "model-a"},
         "q3": {"best": "model-a"},
@@ -249,7 +296,7 @@ def grouped_survey_path(tmp_path: Path) -> Path:
                 "elements": [
                     {
                         "type": "matrixdropdown",
-                        "name": f"case{case}_group{group}_ranking",
+                        "name": f"TC-{case:03d}__0__group-{group:02d}__ranking",
                         "columns": [{"choices": [
                             {"value": model} for model in ("a", "b", "c")
                         ]}],
@@ -258,7 +305,7 @@ def grouped_survey_path(tmp_path: Path) -> Path:
                             for criterion in range(6)
                         ],
                     },
-                    {"type": "comment", "name": f"case{case}_group{group}_comment"},
+                    {"type": "comment", "name": f"TC-{case:03d}__0__group-{group:02d}__comment"},
                 ],
             }
             for case in range(1, 28)
@@ -279,7 +326,7 @@ def test_limit_cases_caps_each_participant_and_rankings(
             "last_page": 27,
             "submitted_at": None,
             "answers": {
-                f"case{case}_group{group}_ranking": {
+                f"TC-{case:03d}__0__group-{group:02d}__ranking": {
                     f"q{criterion}": {"best": "a", "worst": "c"}
                     for criterion in range(6)
                 }
@@ -312,17 +359,17 @@ def test_limit_cases_uses_survey_order_not_answered_order(
     grouped_survey_path: Path,
 ) -> None:
     responses = [{"answers": {
-        "case12_group2_comment": "Outside the limit",
-        "case11_group2_ranking": {"q0": {"best": "a", "worst": "c"}},
-        "case10_group2_ranking": {"q0": {"best": "a"}},
-        "case10_group2_comment": "Inside the limit",
+        "TC-012__0__group-02__comment": "Outside the limit",
+        "TC-011__0__group-02__ranking": {"q0": {"best": "a", "worst": "c"}},
+        "TC-010__0__group-02__ranking": {"q0": {"best": "a"}},
+        "TC-010__0__group-02__comment": "Inside the limit",
     }}]
 
     limited = _module["limit_response_cases"](responses, grouped_survey_path, 10)
 
     assert limited[0]["answers"] == {
-        "case10_group2_ranking": {"q0": {"best": "a"}},
-        "case10_group2_comment": "Inside the limit",
+        "TC-010__0__group-02__ranking": {"q0": {"best": "a"}},
+        "TC-010__0__group-02__comment": "Inside the limit",
     }
 
 
@@ -331,7 +378,7 @@ def test_limit_cases_inclusive_range_per_group(
     grouped_survey_path: Path, min_cases: int, max_cases: int,
 ) -> None:
     responses = [{"answers": {
-        f"case{case}_group{group}_{kind}": "answer"
+        f"TC-{case:03d}__0__group-{group:02d}__{kind}": "answer"
         for case in reversed(range(1, 28))
         for kind in ("ranking", "comment")
     }} for group in (1, 2)]
@@ -342,7 +389,7 @@ def test_limit_cases_inclusive_range_per_group(
 
     for group, response in enumerate(limited, start=1):
         assert set(response["answers"]) == {
-            f"case{case}_group{group}_{kind}"
+            f"TC-{case:03d}__0__group-{group:02d}__{kind}"
             for case in range(min_cases, min(max_cases, 27) + 1)
             for kind in ("ranking", "comment")
         }
@@ -368,7 +415,9 @@ def test_limit_cases_ungrouped_survey(
     survey_path: Path, n_cases: int, expected_count: int,
 ) -> None:
     limited = _module["limit_response_cases"](
-        [{"answers": {"ranking": {"q1": {"best": "model-a", "worst": "model-c"}}}}],
+        [{"answers": {"TC-006__0__group-10__ranking": {
+            "q1": {"best": "model-a", "worst": "model-c"},
+        }}}],
         survey_path,
         n_cases,
     )
@@ -424,7 +473,7 @@ def stratified_responses(survey_path: Path, tmp_path: Path):
     ]
 
 
-def test_stratified_borda_equal_question_weight_and_model_coverage(
+def test_stratified_borda_equal_case_weight_and_model_coverage(
     survey_path: Path, stratified_responses,
 ) -> None:
     results = _module["rank_llms_by_category_stratified_borda"](
@@ -433,8 +482,8 @@ def test_stratified_borda_equal_question_weight_and_model_coverage(
 
     assert results == {
         "Accuracy": [
-            {"rank": 1, "model": "model-b", "score": 4.0, "answer_count": 22, "stratum_count": 2},
-            {"rank": 2, "model": "model-a", "score": 3.0, "answer_count": 22, "stratum_count": 2},
+            {"rank": 1, "model": "model-a", "score": pytest.approx(102 / 22), "answer_count": 22, "stratum_count": 1},
+            {"rank": 2, "model": "model-b", "score": pytest.approx(70 / 22), "answer_count": 22, "stratum_count": 1},
             {"rank": 3, "model": "model-d", "score": 3.0, "answer_count": 2, "stratum_count": 1},
             {"rank": 4, "model": "model-c", "score": 1.0, "answer_count": 20, "stratum_count": 1},
         ],
@@ -445,19 +494,17 @@ def test_stratified_borda_equal_question_weight_and_model_coverage(
         ],
     }
     ordinary = rank_llms_by_category_borda(stratified_responses, survey_path)
-    assert ordinary["Accuracy"][0]["model"] == "model-a"
-    assert ordinary["Accuracy"][0]["score"] == pytest.approx(102 / 22)
+    assert [
+        {key: value for key, value in row.items() if key != "stratum_count"}
+        for row in results["Accuracy"]
+    ] == ordinary["Accuracy"]
+    assert ordinary["Clarity"][0]["model"] == "model-c"
+    assert ordinary["Clarity"][0]["score"] == 4
 
 
-@pytest.mark.parametrize("question, category", [
-    ("TC-002__0__group-01__ranking", "q1"),
-    ("TC-001__0__group-02__ranking", "q1"),
-    ("TC-001__1__group-01__ranking", "q1"),
-    ("TC-001__0__group-01__ranking", "q2"),
-])
-def test_stratum_preserves_case_variant_group_and_category(question, category) -> None:
-    first = RankingObservation("TC-001__0__group-01__ranking", "q1", ("a", "b", "c"))
-    second = RankingObservation(question, category, ("c", "b", "a"))
+def test_stratum_preserves_case() -> None:
+    first = RankingObservation("TC-001", 1, "q1", ("a", "b", "c"))
+    second = RankingObservation("TC-002", 1, "q1", ("c", "b", "a"))
 
     results = rank_stratified_borda([first] * 20 + [second] * 2)
 
@@ -466,12 +513,26 @@ def test_stratum_preserves_case_variant_group_and_category(question, category) -
     assert all(row["stratum_count"] == 2 for row in results)
 
 
+@pytest.mark.parametrize("group, category", [(2, "q1"), (1, "q2"), (2, "q2")])
+def test_stratum_pools_groups_and_categories_by_answer_count(group, category) -> None:
+    first = RankingObservation("TC-001", 1, "q1", ("a", "b", "c"))
+    second = RankingObservation("TC-001", group, category, ("c", "b", "a"))
+
+    results = rank_stratified_borda([first] * 20 + [second] * 2)
+
+    assert results == [
+        {"rank": 1, "model": "a", "score": pytest.approx(102 / 22), "answer_count": 22, "stratum_count": 1},
+        {"rank": 2, "model": "b", "score": 3, "answer_count": 22, "stratum_count": 1},
+        {"rank": 3, "model": "c", "score": pytest.approx(30 / 22), "answer_count": 22, "stratum_count": 1},
+    ]
+
+
 def test_stratified_borda_averages_within_strata_and_is_replication_invariant() -> None:
     first = [
-        RankingObservation("matrix-1", "q1", ("a", "b", "c")),
-        RankingObservation("matrix-1", "q1", ("b", "a", "c")),
+        RankingObservation("TC-001", 1, "q1", ("a", "b", "c")),
+        RankingObservation("TC-001", 1, "q1", ("b", "a", "c")),
     ]
-    second = [RankingObservation("matrix-2", "q1", ("c", "b", "a"))]
+    second = [RankingObservation("TC-002", 1, "q1", ("c", "b", "a"))]
 
     original = rank_stratified_borda(first + second)
     replicated = rank_stratified_borda(first * 7 + second)
@@ -489,10 +550,10 @@ def test_stratified_borda_averages_within_strata_and_is_replication_invariant() 
 
 def test_stratified_borda_matches_borda_with_equal_stratum_sizes() -> None:
     observations = [
-        RankingObservation("matrix-1", "q1", ("a", "b", "c")),
-        RankingObservation("matrix-1", "q1", ("b", "a", "c")),
-        RankingObservation("matrix-2", "q1", ("c", "b", "a")),
-        RankingObservation("matrix-2", "q1", ("a", "b", "c")),
+        RankingObservation("TC-001", 1, "q1", ("a", "b", "c")),
+        RankingObservation("TC-001", 1, "q1", ("b", "a", "c")),
+        RankingObservation("TC-002", 1, "q1", ("c", "b", "a")),
+        RankingObservation("TC-002", 1, "q1", ("a", "b", "c")),
     ]
 
     assert [
@@ -509,16 +570,16 @@ def test_stratified_borda_matches_borda_with_equal_stratum_sizes() -> None:
 def test_stratified_borda_preserves_incomplete_ranking_policy(
     survey_path: Path, selection,
 ) -> None:
-    responses = [{"answers": {"ranking": {
+    responses = [{"answers": {"TC-006__0__group-10__ranking": {
         "q1": selection, "q2": {"best": "model-a", "worst": "model-c"},
     }}}]
     rank = _module["rank_llms_by_category_stratified_borda"]
-    with pytest.raises(ValueError, match="Invalid ranking in ranking, q1"):
+    with pytest.raises(ValueError, match="Invalid ranking in TC-006__0__group-10__ranking, q1"):
         rank(responses, survey_path)
     results = rank(responses, survey_path, skip_incomplete=True)
     assert list(results) == ["Clarity"]
     assert all(row["stratum_count"] == row["answer_count"] == 1 for row in results["Clarity"])
-    assert responses[0]["answers"]["ranking"]["q1"] == selection
+    assert responses[0]["answers"]["TC-006__0__group-10__ranking"]["q1"] == selection
 
 
 @pytest.mark.parametrize("method", ["borda", "plackett_luce", "stratified_borda"])
@@ -535,7 +596,7 @@ def test_observation_pipeline_by_category_case_type_and_overall(
     assert list(observations) == ["inclusive", "general", "total"]
     assert [len(items) for items in observations["total"].values()] == [22, 4]
     assert observations["total"]["Accuracy"][0] == RankingObservation(
-        "TC-001__0__group-01__ranking", "q1", ("model-a", "model-b", "model-c"),
+        "TC-001", 1, "q1", ("model-a", "model-b", "model-c"),
     )
     rank = partial(rank_observations, method=method)
     for case_type, categories in observations.items():
@@ -551,19 +612,21 @@ def test_observation_pipeline_by_category_case_type_and_overall(
             assert overall == _module["rank_overall"](triplets[case_type], legacy_rank)
         elif case_type == "total":
             assert {row["model"]: row["score"] for row in overall} == {
-                "model-a": 3, "model-b": 3.5, "model-c": pytest.approx(7 / 3), "model-d": 3,
+                "model-a": pytest.approx(65 / 23), "model-b": pytest.approx(71 / 23),
+                "model-c": 3, "model-d": 3,
             }
             assert {row["model"]: row["stratum_count"] for row in overall} == {
-                "model-a": 4, "model-b": 4, "model-c": 3, "model-d": 1,
+                "model-a": 2, "model-b": 2, "model-c": 2, "model-d": 1,
             }
         elif case_type == "general":
             assert overall[0]["model"] == "model-c"
             assert all(row["stratum_count"] == 1 for row in overall)
         else:
             assert {row["model"]: row["score"] for row in overall} == {
-                "model-a": pytest.approx(11 / 3), "model-b": pytest.approx(11 / 3),
+                "model-a": pytest.approx(107 / 23), "model-b": pytest.approx(73 / 23),
                 "model-c": 1, "model-d": 3,
             }
+            assert all(row["stratum_count"] == 1 for row in overall)
 
 
 def test_stratified_borda_empty_and_unknown_method(survey_path: Path) -> None:
@@ -578,13 +641,13 @@ def test_stratified_borda_empty_and_unknown_method(survey_path: Path) -> None:
 
 def test_stratified_borda_respects_case_limit(grouped_survey_path: Path) -> None:
     responses = [{"answers": {
-        f"case{case}_group{group}_ranking": {"q0": {"best": "a", "worst": "c"}}
+        f"TC-{case:03d}__0__group-{group:02d}__ranking": {"q0": {"best": "a", "worst": "c"}}
         for case in range(1, 28)
         for group in (1, 2)
     }}] * 3
     limited = _module["limit_response_cases"](responses, grouped_survey_path, 10)
     results = _module["rank_llms_by_category_stratified_borda"](limited, grouped_survey_path)
-    assert all(row["stratum_count"] == 20 for row in results["Criterion 0"])
+    assert all(row["stratum_count"] == 10 for row in results["Criterion 0"])
     assert all(row["answer_count"] == 60 for row in results["Criterion 0"])
 
 
@@ -632,8 +695,8 @@ def test_live_notebook_rankings_and_head_to_head(
         assert dataset.loc["model-a", "answer_count_total"] == 26
         assert dataset.loc["model-d", "answer_count_general"] == 0
         if method == "stratified_borda":
-            assert dataset.loc["model-a", "score_total"] == 3
-            assert dataset.loc["model-a", "stratum_count_total"] == 4
+            assert dataset.loc["model-a", "score_total"] == pytest.approx(65 / 23)
+            assert dataset.loc["model-a", "stratum_count_total"] == 2
             assert dataset.loc["model-d", "stratum_count_general"] == 0
             assert str(dataset["stratum_count_total"].dtype) == "Int64"
         else:
