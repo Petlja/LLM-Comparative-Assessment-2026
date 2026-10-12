@@ -14,7 +14,8 @@ rank_llms_by_category_borda = _module["rank_llms_by_category_borda"]
 rank_llms_by_category_pl = _module["rank_llms_by_category_pl"]
 RankingObservation = _module["RankingObservation"]
 rank_observations = _module["rank_observations"]
-rank_stratified_borda = _module["rank_stratified_borda"]
+rank_borda_stratified_case_group = _module["rank_borda_stratified_case_group"]
+rank_borda_stratified_case = _module["rank_borda_stratified_case"]
 
 
 @pytest.fixture
@@ -473,17 +474,17 @@ def stratified_responses(survey_path: Path, tmp_path: Path):
     ]
 
 
-def test_stratified_borda_equal_case_weight_and_model_coverage(
+def test_borda_stratified_equal_case_group_weight_and_model_coverage(
     survey_path: Path, stratified_responses,
 ) -> None:
-    results = _module["rank_llms_by_category_stratified_borda"](
+    results = _module["rank_llms_by_category_borda_stratified_case_group"](
         stratified_responses, survey_path,
     )
 
     assert results == {
         "Accuracy": [
-            {"rank": 1, "model": "model-a", "score": pytest.approx(102 / 22), "answer_count": 22, "stratum_count": 1},
-            {"rank": 2, "model": "model-b", "score": pytest.approx(70 / 22), "answer_count": 22, "stratum_count": 1},
+            {"rank": 1, "model": "model-b", "score": 4.0, "answer_count": 22, "stratum_count": 2},
+            {"rank": 2, "model": "model-a", "score": 3.0, "answer_count": 22, "stratum_count": 2},
             {"rank": 3, "model": "model-d", "score": 3.0, "answer_count": 2, "stratum_count": 1},
             {"rank": 4, "model": "model-c", "score": 1.0, "answer_count": 20, "stratum_count": 1},
         ],
@@ -494,31 +495,43 @@ def test_stratified_borda_equal_case_weight_and_model_coverage(
         ],
     }
     ordinary = rank_llms_by_category_borda(stratified_responses, survey_path)
-    assert [
-        {key: value for key, value in row.items() if key != "stratum_count"}
-        for row in results["Accuracy"]
-    ] == ordinary["Accuracy"]
+    assert ordinary["Accuracy"][0]["model"] == "model-a"
+    assert ordinary["Accuracy"][0]["score"] == pytest.approx(102 / 22)
     assert ordinary["Clarity"][0]["model"] == "model-c"
     assert ordinary["Clarity"][0]["score"] == 4
 
 
-def test_stratum_preserves_case() -> None:
+@pytest.mark.parametrize("rank", [rank_borda_stratified_case_group, rank_borda_stratified_case])
+def test_stratum_preserves_case(rank) -> None:
     first = RankingObservation("TC-001", 1, "q1", ("a", "b", "c"))
     second = RankingObservation("TC-002", 1, "q1", ("c", "b", "a"))
 
-    results = rank_stratified_borda([first] * 20 + [second] * 2)
+    results = rank([first] * 20 + [second] * 2)
 
     assert all(row["score"] == 3 for row in results)
     assert all(row["answer_count"] == 22 for row in results)
     assert all(row["stratum_count"] == 2 for row in results)
 
 
-@pytest.mark.parametrize("group, category", [(2, "q1"), (1, "q2"), (2, "q2")])
-def test_stratum_pools_groups_and_categories_by_answer_count(group, category) -> None:
+@pytest.mark.parametrize("category", ["q1", "q2"])
+def test_stratum_preserves_group(category) -> None:
     first = RankingObservation("TC-001", 1, "q1", ("a", "b", "c"))
-    second = RankingObservation("TC-001", group, category, ("c", "b", "a"))
+    second = RankingObservation("TC-001", 2, category, ("c", "b", "a"))
 
-    results = rank_stratified_borda([first] * 20 + [second] * 2)
+    results = rank_borda_stratified_case_group([first] * 20 + [second] * 2)
+
+    assert results == [
+        {"rank": rank, "model": model, "score": 3, "answer_count": 22, "stratum_count": 2}
+        for rank, model in enumerate(("a", "b", "c"), start=1)
+    ]
+
+
+@pytest.mark.parametrize("rank", [rank_borda_stratified_case_group, rank_borda_stratified_case])
+def test_stratum_pools_categories_by_answer_count(rank) -> None:
+    first = RankingObservation("TC-001", 1, "q1", ("a", "b", "c"))
+    second = RankingObservation("TC-001", 1, "q2", ("c", "b", "a"))
+
+    results = rank([first] * 20 + [second] * 2)
 
     assert results == [
         {"rank": 1, "model": "a", "score": pytest.approx(102 / 22), "answer_count": 22, "stratum_count": 1},
@@ -527,15 +540,48 @@ def test_stratum_pools_groups_and_categories_by_answer_count(group, category) ->
     ]
 
 
-def test_stratified_borda_averages_within_strata_and_is_replication_invariant() -> None:
+def test_case_stratification_pools_groups() -> None:
+    observations = [
+        RankingObservation("TC-001", 1, "q1", ("a", "b", "c")),
+    ] * 20 + [
+        RankingObservation("TC-001", 2, "q2", ("c", "b", "a")),
+    ] * 2
+
+    assert rank_borda_stratified_case(observations) == [
+        {"rank": 1, "model": "a", "score": pytest.approx(102 / 22), "answer_count": 22, "stratum_count": 1},
+        {"rank": 2, "model": "b", "score": 3, "answer_count": 22, "stratum_count": 1},
+        {"rank": 3, "model": "c", "score": pytest.approx(30 / 22), "answer_count": 22, "stratum_count": 1},
+    ]
+
+
+def test_generic_borda_stratified_uses_key_callback() -> None:
+    observations = [
+        RankingObservation("TC-001", 1, "q1", ("a", "b", "c")),
+    ] * 20 + [
+        RankingObservation("TC-002", 2, "q1", ("c", "b", "a")),
+    ] * 2
+
+    results = _module["_rank_borda_stratified"](
+        observations, lambda observation: observation.category_id,
+    )
+
+    assert all(row["stratum_count"] == 1 for row in results)
+    assert [
+        {key: value for key, value in row.items() if key != "stratum_count"}
+        for row in results
+    ] == rank_observations(observations, "borda")
+
+
+@pytest.mark.parametrize("rank", [rank_borda_stratified_case_group, rank_borda_stratified_case])
+def test_borda_stratified_averages_within_strata_and_is_replication_invariant(rank) -> None:
     first = [
         RankingObservation("TC-001", 1, "q1", ("a", "b", "c")),
         RankingObservation("TC-001", 1, "q1", ("b", "a", "c")),
     ]
     second = [RankingObservation("TC-002", 1, "q1", ("c", "b", "a"))]
 
-    original = rank_stratified_borda(first + second)
-    replicated = rank_stratified_borda(first * 7 + second)
+    original = rank(first + second)
+    replicated = rank(first * 7 + second)
 
     assert {row["model"]: row["score"] for row in original} == {"b": 3.5, "c": 3, "a": 2.5}
     assert [
@@ -548,7 +594,8 @@ def test_stratified_borda_averages_within_strata_and_is_replication_invariant() 
     assert all(row["answer_count"] == 15 for row in replicated)
 
 
-def test_stratified_borda_matches_borda_with_equal_stratum_sizes() -> None:
+@pytest.mark.parametrize("rank", [rank_borda_stratified_case_group, rank_borda_stratified_case])
+def test_borda_stratified_matches_borda_with_equal_stratum_sizes(rank) -> None:
     observations = [
         RankingObservation("TC-001", 1, "q1", ("a", "b", "c")),
         RankingObservation("TC-001", 1, "q1", ("b", "a", "c")),
@@ -558,22 +605,23 @@ def test_stratified_borda_matches_borda_with_equal_stratum_sizes() -> None:
 
     assert [
         {key: value for key, value in row.items() if key != "stratum_count"}
-        for row in rank_stratified_borda(observations)
+        for row in rank(observations)
     ] == rank_observations(observations, "borda")
 
 
+@pytest.mark.parametrize("method", ["borda_stratified_case_group", "borda_stratified_case"])
 @pytest.mark.parametrize("selection", [
     {}, {"best": "model-a"}, {"worst": "model-c"},
     {"best": "model-a", "worst": "model-a"},
     {"best": "unknown", "worst": "model-c"},
 ])
-def test_stratified_borda_preserves_incomplete_ranking_policy(
-    survey_path: Path, selection,
+def test_borda_stratified_preserves_incomplete_ranking_policy(
+    survey_path: Path, selection, method,
 ) -> None:
     responses = [{"answers": {"TC-006__0__group-10__ranking": {
         "q1": selection, "q2": {"best": "model-a", "worst": "model-c"},
     }}}]
-    rank = _module["rank_llms_by_category_stratified_borda"]
+    rank = _module[f"rank_llms_by_category_{method}"]
     with pytest.raises(ValueError, match="Invalid ranking in TC-006__0__group-10__ranking, q1"):
         rank(responses, survey_path)
     results = rank(responses, survey_path, skip_incomplete=True)
@@ -582,7 +630,7 @@ def test_stratified_borda_preserves_incomplete_ranking_policy(
     assert responses[0]["answers"]["TC-006__0__group-10__ranking"]["q1"] == selection
 
 
-@pytest.mark.parametrize("method", ["borda", "plackett_luce", "stratified_borda"])
+@pytest.mark.parametrize("method", ["borda", "plackett_luce", "borda_stratified_case_group", "borda_stratified_case"])
 def test_observation_pipeline_by_category_case_type_and_overall(
     survey_path: Path, tmp_path: Path, stratified_responses, method,
 ) -> None:
@@ -606,52 +654,84 @@ def test_observation_pipeline_by_category_case_type_and_overall(
         } == triplets[case_type]
         by_category = _module["rank_by_category"](categories, rank)
         overall = _module["rank_overall"](categories, rank)
-        if method != "stratified_borda":
+        if method == "borda_stratified_case":
+            assert by_category == _module["rank_by_category"](categories, rank_borda_stratified_case)
+            if case_type == "total":
+                assert by_category == _module["rank_llms_by_category_borda_stratified_case"](
+                    stratified_responses, survey_path,
+                )
+                assert by_category["Accuracy"] == [
+                    {"rank": 1, "model": "model-a", "score": pytest.approx(102 / 22), "answer_count": 22, "stratum_count": 1},
+                    {"rank": 2, "model": "model-b", "score": pytest.approx(70 / 22), "answer_count": 22, "stratum_count": 1},
+                    {"rank": 3, "model": "model-d", "score": 3, "answer_count": 2, "stratum_count": 1},
+                    {"rank": 4, "model": "model-c", "score": 1, "answer_count": 20, "stratum_count": 1},
+                ]
+                assert {row["model"]: row["score"] for row in overall} == {
+                    "model-a": pytest.approx(65 / 23), "model-b": pytest.approx(71 / 23),
+                    "model-c": 3, "model-d": 3,
+                }
+                assert {row["model"]: row["stratum_count"] for row in overall} == {
+                    "model-a": 2, "model-b": 2, "model-c": 2, "model-d": 1,
+                }
+            elif case_type == "inclusive":
+                assert {row["model"]: row["score"] for row in overall} == {
+                    "model-a": pytest.approx(107 / 23), "model-b": pytest.approx(73 / 23),
+                    "model-c": 1, "model-d": 3,
+                }
+                assert all(row["stratum_count"] == 1 for row in overall)
+            else:
+                assert overall[0]["model"] == "model-c"
+                assert all(row["stratum_count"] == 1 for row in overall)
+        elif method != "borda_stratified_case_group":
             legacy_rank = _module[f"rank_{method}"]
             assert by_category == _module["rank_by_category"](triplets[case_type], legacy_rank)
             assert overall == _module["rank_overall"](triplets[case_type], legacy_rank)
         elif case_type == "total":
             assert {row["model"]: row["score"] for row in overall} == {
-                "model-a": pytest.approx(65 / 23), "model-b": pytest.approx(71 / 23),
+                "model-a": pytest.approx(7 / 3), "model-b": pytest.approx(11 / 3),
                 "model-c": 3, "model-d": 3,
             }
             assert {row["model"]: row["stratum_count"] for row in overall} == {
-                "model-a": 2, "model-b": 2, "model-c": 2, "model-d": 1,
+                "model-a": 3, "model-b": 3, "model-c": 2, "model-d": 1,
             }
         elif case_type == "general":
             assert overall[0]["model"] == "model-c"
             assert all(row["stratum_count"] == 1 for row in overall)
         else:
             assert {row["model"]: row["score"] for row in overall} == {
-                "model-a": pytest.approx(107 / 23), "model-b": pytest.approx(73 / 23),
+                "model-a": 3, "model-b": 4,
                 "model-c": 1, "model-d": 3,
             }
-            assert all(row["stratum_count"] == 1 for row in overall)
+            assert {row["model"]: row["stratum_count"] for row in overall} == {
+                "model-a": 2, "model-b": 2, "model-c": 1, "model-d": 1,
+            }
 
 
-def test_stratified_borda_empty_and_unknown_method(survey_path: Path) -> None:
-    assert rank_stratified_borda([]) == []
-    for method in ("borda", "plackett_luce", "stratified_borda"):
+def test_borda_stratified_empty_and_unknown_method(survey_path: Path) -> None:
+    assert rank_borda_stratified_case_group([]) == []
+    assert rank_borda_stratified_case([]) == []
+    for method in ("borda", "plackett_luce", "borda_stratified_case_group", "borda_stratified_case"):
         assert rank_observations([], method) == []
         assert _module["rank_overall"]({}, partial(rank_observations, method=method)) == []
-    assert _module["rank_llms_by_category_stratified_borda"]([], survey_path) == {}
+    assert _module["rank_llms_by_category_borda_stratified_case_group"]([], survey_path) == {}
+    assert _module["rank_llms_by_category_borda_stratified_case"]([], survey_path) == {}
     with pytest.raises(ValueError, match="Unknown ranking method"):
         rank_observations([], "not-a-method")
 
 
-def test_stratified_borda_respects_case_limit(grouped_survey_path: Path) -> None:
+def test_borda_stratified_respects_case_limit(grouped_survey_path: Path) -> None:
     responses = [{"answers": {
         f"TC-{case:03d}__0__group-{group:02d}__ranking": {"q0": {"best": "a", "worst": "c"}}
         for case in range(1, 28)
         for group in (1, 2)
     }}] * 3
     limited = _module["limit_response_cases"](responses, grouped_survey_path, 10)
-    results = _module["rank_llms_by_category_stratified_borda"](limited, grouped_survey_path)
-    assert all(row["stratum_count"] == 10 for row in results["Criterion 0"])
+    results = _module["rank_llms_by_category_borda_stratified_case_group"](limited, grouped_survey_path)
+    assert all(row["stratum_count"] == 20 for row in results["Criterion 0"])
     assert all(row["answer_count"] == 60 for row in results["Criterion 0"])
 
 
-@pytest.mark.parametrize("method", ["borda", "plackett_luce", "stratified_borda"])
+@pytest.mark.parametrize("method", ["borda", "plackett_luce", "borda_stratified_case_group"])
 @pytest.mark.parametrize("empty", [False, True])
 def test_live_notebook_rankings_and_head_to_head(
     survey_path: Path, tmp_path: Path, stratified_responses, monkeypatch, method, empty,
@@ -695,9 +775,9 @@ def test_live_notebook_rankings_and_head_to_head(
     else:
         assert dataset.loc["model-a", "answer_count_total"] == 26
         assert dataset.loc["model-d", "answer_count_general"] == 0
-        if method == "stratified_borda":
-            assert dataset.loc["model-a", "score_total"] == pytest.approx(65 / 23)
-            assert dataset.loc["model-a", "stratum_count_total"] == 2
+        if method == "borda_stratified_case_group":
+            assert dataset.loc["model-a", "score_total"] == pytest.approx(7 / 3)
+            assert dataset.loc["model-a", "stratum_count_total"] == 3
             assert dataset.loc["model-d", "stratum_count_general"] == 0
             assert str(dataset["stratum_count_total"].dtype) == "Int64"
         else:

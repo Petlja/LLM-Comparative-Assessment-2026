@@ -307,7 +307,7 @@ def _fit_plackett_luce(
 
 Triplet = tuple[str, str, str]
 RankingRows = list[dict[str, str | int | float]]
-RankingMethod = Literal["borda", "plackett_luce", "stratified_borda"]
+RankingMethod = Literal["borda", "plackett_luce", "borda_stratified_case_group", "borda_stratified_case"]
 RankingItem = TypeVar("RankingItem")
 
 
@@ -473,11 +473,14 @@ def rank_borda(triplets: list[Triplet]) -> RankingRows:
     )
 
 
-def rank_stratified_borda(observations: list[RankingObservation]) -> RankingRows:
-    """Pool rankings within cases, then average 5/3/1 case means equally per model."""
+def _rank_borda_stratified(
+    observations: list[RankingObservation],
+    stratum_key: Callable[[RankingObservation], str],
+) -> RankingRows:
+    """Average 5/3/1 points within strata, then equally across strata per model."""
     strata: dict[str, list[Triplet]] = defaultdict(list)
     for observation in observations:
-        strata[observation.case_key].append(observation.triplet)
+        strata[stratum_key(observation)].append(observation.triplet)
 
     mean_totals: dict[str, float] = defaultdict(float)
     answer_counts: Counter[str] = Counter()
@@ -496,6 +499,18 @@ def rank_stratified_borda(observations: list[RankingObservation]) -> RankingRows
     )
 
 
+def rank_borda_stratified_case_group(observations: list[RankingObservation]) -> RankingRows:
+    """Stratify Borda points by case-group pair."""
+    return _rank_borda_stratified(
+        observations, lambda observation: f"{observation.case_key}-{observation.group}",
+    )
+
+
+def rank_borda_stratified_case(observations: list[RankingObservation]) -> RankingRows:
+    """Stratify Borda points by case, pooling groups within each case."""
+    return _rank_borda_stratified(observations, lambda observation: observation.case_key)
+
+
 def rank_plackett_luce(triplets: list[Triplet]) -> RankingRows:
     counts = Counter(model for triplet in triplets for model in triplet)
     if not counts:
@@ -512,8 +527,10 @@ def rank_observations(
     method: RankingMethod = "borda",
 ) -> RankingRows:
     """Apply a ranking method without discarding stratum identity prematurely."""
-    if method == "stratified_borda":
-        return rank_stratified_borda(observations)
+    if method == "borda_stratified_case_group":
+        return rank_borda_stratified_case_group(observations)
+    if method == "borda_stratified_case":
+        return rank_borda_stratified_case(observations)
     if method == "borda":
         return rank_borda([observation.triplet for observation in observations])
     if method == "plackett_luce":
@@ -567,7 +584,7 @@ def rank_llms_by_category_pl(
     )
 
 
-def rank_llms_by_category_stratified_borda(
+def rank_llms_by_category_borda_stratified_case_group(
     responses: list[dict[str, Any]],
     survey_path: str | Path,
     *,
@@ -577,5 +594,19 @@ def rank_llms_by_category_stratified_borda(
         extract_observations_by_category(
             responses, survey_path, skip_incomplete=skip_incomplete,
         ),
-        rank_stratified_borda,
+        rank_borda_stratified_case_group,
+    )
+
+
+def rank_llms_by_category_borda_stratified_case(
+    responses: list[dict[str, Any]],
+    survey_path: str | Path,
+    *,
+    skip_incomplete: bool = False,
+) -> dict[str, RankingRows]:
+    return rank_by_category(
+        extract_observations_by_category(
+            responses, survey_path, skip_incomplete=skip_incomplete,
+        ),
+        rank_borda_stratified_case,
     )

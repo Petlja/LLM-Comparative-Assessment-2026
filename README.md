@@ -38,7 +38,7 @@ The shared package is consumed as an editable dependency from the sibling checko
 | `llmcmp survey` | Build this round's balanced three-model SurveyJS survey | This repository |
 | `survey-preview` | Serve a generated survey in a temporary local Simple Survey instance | Simple Survey dependency |
 | `llmcmp test_survey` | Submit synthetic responses through Chromium and verify the API result | This repository |
-| `suvrey-analisys/*.py` | Calculate Plackett-Luce, Borda, and case-stratified Borda rankings, and response-size summaries | This repository |
+| `suvrey-analisys/*.py` | Calculate Plackett-Luce, Borda, case- and case-group-stratified Borda rankings, and response-size summaries | This repository |
 
 The shared CLI also has a generic `plcmp survey` command. Do not use it for the 2026
 round: `llmcmp survey` implements this assessment's triplet assignment, presentation,
@@ -272,23 +272,28 @@ To rank responses while they are being collected, run
 but skips criteria where best or worst is not yet selected, and reads the survey
 definition from `eval/output/survey.json`.
 Set `ranking_method` in the ranking cell to `"borda"` (the unchanged default),
-`"plackett_luce"`, or `"stratified_borda"`. All three methods support the category,
+`"plackett_luce"`, `"borda_stratified_case_group"`, or `"borda_stratified_case"`. All four methods support the category,
 Overall, Total, Inclusive, and General views.
 
 Borda assigns 5/3/1 points to best/middle/worst and averages per model appearance.
-Stratified Borda uses `case_key` alone as the stratum: it first averages each
-model's points within a case, pooling participant groups, then averages its case
-means equally. For example, 20 answers averaging 5 points in one case and
+Stratified Borda offers two stratifications:
+
+- `"borda_stratified_case_group"` uses case-group pairs, keyed by `f"{case_key}-{group}"`.
+- `"borda_stratified_case"` uses `case_key` alone, pooling groups within each case.
+
+Both first average each model's points within a stratum, then average its stratum
+means equally. For example, 20 answers averaging 5 points in one stratum and
 2 answers averaging 1 in another yield
 3.0 stratified points, rather than ordinary Borda's 102/22.
-Unanswered cases and cases not containing a model are excluded from that model's
+Unanswered strata and strata not containing a model are excluded from that model's
 denominator. `answer_count` still counts individual valid rankings;
-`stratum_count`, returned only by stratified Borda, counts contributing cases.
+`stratum_count`, returned only by stratified Borda, counts contributing strata:
+case-group pairs or cases, depending on the method.
 Per-category rankings pool only that category's answers. Overall pools all
-categories within each case before averaging case means, rather than averaging
-category scores. Each valid ranking has equal weight within a case, so groups
-and categories with more valid answers contribute more to that case's mean.
-This gives each observed case equal weight per model, but does not balance
+categories within each stratum before averaging stratum means, rather than
+averaging category scores. Each valid ranking has equal weight within a stratum, so
+categories with more valid answers contribute more to that stratum's mean.
+This gives each observed stratum equal weight per model, but does not balance
 opponent combinations or adjust for opponent strength.
 
 For Python callers, `extract_observations_by_category` and
@@ -297,12 +302,16 @@ with `case_key`, integer `group`, `category_id`, and `triplet` fields.
 For example, `TC-006__0__group-10__ranking` gives `case_key="TC-006"` and `group=10`.
 The internal variant is always `0` in this survey and is not stored; extraction
 rejects names with other variants or an invalid format.
-Pass these records to `rank_stratified_borda`, or use
-`rank_observations(observations, method=...)` with any of the three methods.
+Pass these records to `rank_borda_stratified_case_group` (case-group) or
+`rank_borda_stratified_case` (case-only), or use
+`rank_observations(observations, method=...)` with any of the four methods.
+Both stratified rankers delegate to `_rank_borda_stratified(observations, stratum_key)`,
+whose callback constructs a string key for each observation.
 `rank_by_category` and `rank_overall` accept either observations with a matching
 ranker or the original triplets. Existing triplet extraction functions, rankers,
 and convenience functions remain supported;
-`rank_llms_by_category_stratified_borda` provides the new response-level shortcut.
+`rank_llms_by_category_borda_stratified_case_group` and
+`rank_llms_by_category_borda_stratified_case` provide response-level shortcuts.
 The notebook's head-to-head section continues counting individual triplets,
 independently of the selected ranking method.
 
