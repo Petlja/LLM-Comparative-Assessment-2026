@@ -3,6 +3,7 @@ import re
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
+from runpy import run_path
 from urllib.request import Request
 
 import pandas as pd
@@ -46,6 +47,12 @@ def test_fetch_saves_raw_responses_and_overwrites_same_minute(
         def now() -> datetime:
             return datetime(2026, 10, 9, 13, 3)
 
+    helper_namespace = run_path(
+        str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
+    )
+    prepare_live_responses = helper_namespace["prepare_live_responses"]
+    helper_globals = prepare_live_responses.__globals__
+
     def urlopen(request: Request, timeout: int) -> StringIO:
         assert timeout == 30
         calls.append(request.full_url)
@@ -71,11 +78,17 @@ def test_fetch_saves_raw_responses_and_overwrites_same_minute(
             for response in responses
         ]
 
+    monkeypatch.setitem(helper_globals, "datetime", FixedDatetime)
+    monkeypatch.setitem(helper_globals, "urlopen", urlopen)
+    monkeypatch.setitem(helper_globals, "limit_response_cases", limit_response_cases)
+    monkeypatch.setitem(helper_globals, "summarize_participants", summarize_participants)
+    monkeypatch.setitem(helper_globals, "CONFIG_PATH", analysis_dir / "live-analisys-config.json")
+    monkeypatch.setitem(helper_globals, "SURVEY_PATH", "../eval/output/survey.json")
+    monkeypatch.setitem(helper_globals, "CASES_PATH", "../eval/test-cases.yml")
+    monkeypatch.setitem(helper_globals, "RESPONSE_DIR", Path("..") / "eval" / "final-assesment")
+
     namespace = {
-        "json": json, "datetime": FixedDatetime, "Path": Path, "pd": pd,
-        "Request": Request, "urlopen": urlopen,
-        "limit_response_cases": limit_response_cases,
-        "summarize_participants": summarize_participants,
+        "prepare_live_responses": prepare_live_responses,
     }
     if min_completed_cases < 0:
         with pytest.raises(ValueError, match="min_completed_cases must be non-negative"):
@@ -99,6 +112,79 @@ def test_fetch_saves_raw_responses_and_overwrites_same_minute(
         ]
     assert calls == ["http://localhost/api/responses", "http://localhost/api/participants/"] * 2
     assert len(summarized_responses) == (2 if min_completed_cases > 0 else 0)
+
+
+def test_prepare_live_responses_filters_answers_by_course(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    helper_namespace = run_path(
+        str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
+    )
+    prepare_live_responses = helper_namespace["prepare_live_responses"]
+    monkeypatch.setitem(
+        prepare_live_responses.__globals__,
+        "limit_response_cases",
+        lambda responses, survey_path, n_cases, *, min_cases: responses,
+    )
+    cases_path = tmp_path / "test-cases.yml"
+    cases_path.write_text(
+        "- case_key: TC-001\n  course_key: course-a\n"
+        "- case_key: TC-002\n  course_key: course-b\n",
+        encoding="utf-8",
+    )
+    raw_responses = [{
+        "label": "p01",
+        "answers": {
+            "TC-001__0__group-01__ranking": {"q1": "a"},
+            "TC-002__0__group-01__ranking": {"q1": "b"},
+        },
+    }]
+
+    def fetch_api(path: str) -> list[dict]:
+        return raw_responses if path == "/api/responses" else []
+
+    monkeypatch.setitem(prepare_live_responses.__globals__, "fetch_api", fetch_api)
+    responses, _ = prepare_live_responses(
+        "survey.json", cases_path, tmp_path / "snapshots",
+        n_cases_min=1, n_cases_max=99, min_completed_cases=0,
+        course_keys=["course-a"],
+    )
+
+    assert responses == [{
+        "label": "p01",
+        "answers": {"TC-001__0__group-01__ranking": {"q1": "a"}},
+    }]
+
+
+@pytest.mark.parametrize("course_keys", [None, []])
+def test_prepare_live_responses_empty_course_filter_keeps_all_answers(
+    tmp_path: Path, monkeypatch, course_keys: list[str] | None,
+) -> None:
+    helper_namespace = run_path(
+        str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
+    )
+    prepare_live_responses = helper_namespace["prepare_live_responses"]
+    monkeypatch.setitem(
+        prepare_live_responses.__globals__,
+        "limit_response_cases",
+        lambda responses, survey_path, n_cases, *, min_cases: responses,
+    )
+    raw_responses = [{
+        "label": "p01",
+        "answers": {"TC-001__0__group-01__ranking": {"q1": "a"}},
+    }]
+
+    def fetch_api(path: str) -> list[dict]:
+        return raw_responses if path == "/api/responses" else []
+
+    monkeypatch.setitem(prepare_live_responses.__globals__, "fetch_api", fetch_api)
+    responses, _ = prepare_live_responses(
+        "survey.json", tmp_path / "missing.yml",
+        tmp_path / "snapshots", n_cases_min=1, n_cases_max=99,
+        min_completed_cases=0, course_keys=course_keys,
+    )
+
+    assert responses == raw_responses
 
 
 @pytest.fixture
@@ -139,8 +225,8 @@ def run_timeline(cell: str, questions: list[dict], participants: list[dict]) -> 
 
 def test_timeline_filters_participant_and_sorts_timestamps(timeline_cell: str) -> None:
     participants = [
-        {"token": "selected", "label": "p07"},
-        {"token": "excluded", "label": "p08"},
+        {"token": "selected", "label": "p20"},
+        {"token": "excluded", "label": "p21"},
     ]
     questions = [
         {"token": "selected", "question_name": "later", "first_answered_at": "2026-10-06T12:00:00"},
@@ -152,21 +238,21 @@ def test_timeline_filters_participant_and_sorts_timestamps(timeline_cell: str) -
     namespace = run_timeline(timeline_cell, questions, participants)
     timeline = namespace["question_timeline"]
 
-    assert namespace["timeline_participant"] == "p07"
+    assert namespace["timeline_participant"] == "p20"
     assert list(timeline.columns) == ["question_name", "first_answered_at"]
     assert timeline["question_name"].tolist() == ["earlier", "same_time", "later"]
     assert str(timeline["first_answered_at"].dt.tz) == "UTC"
     assert isinstance(namespace["displayed"][-1], pd.DataFrame)
     assert namespace["displayed"][-1]["first_answered_at"].tolist() == [
-        "2026-10-06 10:00",
-        "2026-10-06 10:00",
         "2026-10-06 12:00",
+        "2026-10-06 12:00",
+        "2026-10-06 14:00",
     ]
 
 
 def test_timeline_reports_no_records(timeline_cell: str) -> None:
     namespace = run_timeline(
-        timeline_cell, [], [{"token": "selected", "label": "p07"}],
+        timeline_cell, [], [{"token": "selected", "label": "p20"}],
     )
 
     assert namespace["question_timeline"].empty
@@ -175,12 +261,12 @@ def test_timeline_reports_no_records(timeline_cell: str) -> None:
 
 @pytest.mark.parametrize("participants", [
     [],
-    [{"token": "a", "label": "p07"}, {"token": "b", "label": "p07"}],
+    [{"token": "a", "label": "p20"}, {"token": "b", "label": "p20"}],
 ])
 def test_timeline_rejects_missing_or_ambiguous_participant(
     timeline_cell: str, participants: list[dict],
 ) -> None:
-    with pytest.raises(ValueError, match="Expected one participant labelled 'p07'"):
+    with pytest.raises(ValueError, match="Expected one participant labelled 'p20'"):
         run_timeline(timeline_cell, [], participants)
 
 
@@ -191,6 +277,36 @@ def test_timeline_rejects_invalid_timestamp(timeline_cell: str) -> None:
             [{"token": "selected", "question_name": "ranking", "first_answered_at": "invalid"}],
             [{"token": "selected", "label": "p07"}],
         )
+
+
+def test_extract_observations_uses_shared_paths_by_default(tmp_path: Path) -> None:
+    helper_namespace = run_path(
+        str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
+    )
+    extract_observations = helper_namespace["extract_observations_by_case_type"]
+    helper_globals = extract_observations.__globals__
+    survey_path = tmp_path / "survey.json"
+    survey_path.write_text(json.dumps({"pages": [{"elements": [{
+        "type": "matrixdropdown",
+        "name": "TC-001__0__group-01__ranking",
+        "columns": [{"choices": [{"value": model} for model in ("a", "b", "c")]}],
+        "rows": [{"value": "q1", "text": "Accuracy"}],
+    }]}]}), encoding="utf-8")
+    cases_path = tmp_path / "test-cases.yml"
+    cases_path.write_text("- case_key: TC-001\n  inclusive: true\n", encoding="utf-8")
+    helper_globals["SURVEY_PATH"] = survey_path
+    helper_globals["CASES_PATH"] = cases_path
+    responses = [{"answers": {
+        "TC-001__0__group-01__ranking": {
+            "q1": {"best": "a", "worst": "c"},
+        },
+    }}]
+
+    observations = extract_observations(responses, skip_incomplete=True)
+
+    assert observations["total"]["Accuracy"][0].triplet == ("a", "b", "c")
+    assert observations["inclusive"]["Accuracy"][0].case_key == "TC-001"
+    assert observations["general"] == {}
 
 
 @pytest.mark.parametrize("rank_method", ["rank_borda", "rank_plackett_luce"])
@@ -228,13 +344,13 @@ def test_ranking_datasets_include_case_type_columns(
     displayed = []
     namespace = {
         "pd": pd, "responses": responses, "survey_path": survey_path,
+        "CASES_PATH": survey_responce.CASES_PATH,
         "rank_borda": survey_responce.rank_borda,
         "rank_plackett_luce": survey_responce.rank_plackett_luce,
         "rank_by_category": survey_responce.rank_by_category,
         "rank_overall": survey_responce.rank_overall,
         "Markdown": str, "display": displayed.append,
     }
-
     exec(compile(source, "live-analisys.ipynb:rankings", "exec"), namespace)
 
     comparison_source = (

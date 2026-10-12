@@ -2,16 +2,107 @@ import json
 import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from statistics import fmean
 from typing import Any, Callable, Literal, TypeVar
+from urllib.request import Request, urlopen
 
 import yaml
+
+ANALYSIS_DIR = Path(__file__).resolve().parent
+CONFIG_PATH = ANALYSIS_DIR / "live-analisys-config.json"
+SURVEY_PATH = ANALYSIS_DIR.parent / "eval" / "output" / "survey.json"
+CASES_PATH = ANALYSIS_DIR.parent / "eval" / "test-cases.yml"
+RESPONSE_DIR = ANALYSIS_DIR.parent / "eval" / "final-assesment"
+
+
+def load_survey_config(path: str | Path | None = None) -> dict[str, Any]:
+    """Load the shared survey API configuration."""
+    with open(path or CONFIG_PATH, encoding="utf-8") as config_file:
+        return json.load(config_file)
 
 
 def load_responses(path: str | Path) -> list[dict[str, Any]]:
     with open(path, encoding="utf-8") as responses_file:
         return json.load(responses_file)
+
+
+def fetch_api(path: str, config: dict[str, Any] | None = None) -> Any:
+    config = load_survey_config() if config is None else config
+    request = Request(
+        f"{config['base_url'].rstrip('/')}{path}",
+        headers={"Authorization": f"Bearer {config['admin_token']}"},
+    )
+    with urlopen(request, timeout=30) as api_response:
+        return json.load(api_response)
+
+
+def prepare_live_responses(
+    survey_path: str | Path | None = None,
+    cases_path: str | Path | None = None,
+    response_dir: str | Path | None = None,
+    *,
+    n_cases_min: int,
+    n_cases_max: int,
+    min_completed_cases: int,
+    course_keys: list[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch live data, save a raw snapshot, and apply the analysis filters."""
+    if min_completed_cases < 0:
+        raise ValueError("min_completed_cases must be non-negative.")
+    survey_path = SURVEY_PATH if survey_path is None else survey_path
+    cases_path = CASES_PATH if cases_path is None else cases_path
+    response_dir = RESPONSE_DIR if response_dir is None else response_dir
+
+    raw_responses = fetch_api("/api/responses")
+    response_dir = Path(response_dir)
+    response_dir.mkdir(parents=True, exist_ok=True)
+    response_path = response_dir / f"responce-{datetime.now():%y-%m-%d-%H-%M}.json"
+    with response_path.open("w", encoding="utf-8") as response_file:
+        json.dump(raw_responses, response_file, ensure_ascii=False, indent=2)
+
+    responses = [
+        response
+        for response in raw_responses
+        if re.match(r"^p\d{2}", str(response.get("label") or ""))
+    ]
+    if course_keys:
+        with open(cases_path, encoding="utf-8") as cases_file:
+            cases = yaml.safe_load(cases_file)
+        course_by_case = {case["case_key"]: case["course_key"] for case in cases}
+        available_course_keys = set(course_by_case.values())
+        unknown_course_keys = set(course_keys) - available_course_keys
+        if unknown_course_keys:
+            raise ValueError(f"Unknown course keys: {sorted(unknown_course_keys)}")
+        selected_case_keys = {
+            case_key for case_key, course_key in course_by_case.items()
+            if course_key in course_keys
+        }
+        responses = [
+            {
+                **response,
+                "answers": {
+                    question_name: answer
+                    for question_name, answer in response["answers"].items()
+                    if question_name.partition("__")[0] in selected_case_keys
+                },
+            }
+            for response in responses
+        ]
+
+    participants = fetch_api("/api/participants/")
+    if min_completed_cases > 0:
+        full_survey_stats = summarize_participants(responses, participants, survey_path)
+        responses = [
+            response
+            for response, stats in zip(responses, full_survey_stats)
+            if stats["completed_cases"] >= min_completed_cases
+        ]
+    responses = limit_response_cases(
+        responses, survey_path, n_cases_max, min_cases=n_cases_min,
+    )
+    return responses, participants
 
 
 def limit_response_cases(
@@ -133,8 +224,9 @@ def _count_complete_rankings(answer: dict[str, dict[str, str]]) -> int:
 def summarize_participants(
     responses: list[dict[str, Any]],
     participants: list[dict[str, Any]],
-    survey_path: str | Path,
+    survey_path: str | Path | None = None,
 ) -> list[dict[str, Any]]:
+    survey_path = SURVEY_PATH if survey_path is None else survey_path
     criteria_by_case, case_by_question = _load_cases(survey_path)
     group_by_token = {
         participant["token"]: (participant.get("variables") or {}).get("group")
@@ -272,12 +364,14 @@ def extract_observations_by_category(
 
 def extract_observations_by_case_type(
     responses: list[dict[str, Any]],
-    survey_path: str | Path,
-    cases_path: str | Path,
+    survey_path: str | Path | None = None,
+    cases_path: str | Path | None = None,
     *,
     skip_incomplete: bool = False,
 ) -> dict[str, dict[str, list[RankingObservation]]]:
     """Split rankings using case flags; missing inclusive flags mean general."""
+    survey_path = SURVEY_PATH if survey_path is None else survey_path
+    cases_path = CASES_PATH if cases_path is None else cases_path
     with open(cases_path, encoding="utf-8") as cases_file:
         cases = yaml.safe_load(cases_file)
     inclusive_by_case = {case["case_key"]: case.get("inclusive", False) for case in cases}

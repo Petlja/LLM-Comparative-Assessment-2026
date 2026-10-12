@@ -681,6 +681,7 @@ def test_live_notebook_rankings_and_head_to_head(
     namespace.update({
         "responses": [] if empty else stratified_responses,
         "survey_path": survey_path,
+        "CASES_PATH": eval_dir / "test-cases.yml",
         "display": lambda *args: None,
     })
     ranking_source = next(source for source in sources if "observations_by_case_type =" in source)
