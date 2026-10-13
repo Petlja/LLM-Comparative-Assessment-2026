@@ -62,9 +62,24 @@ def prepare_live_responses(
     with response_path.open("w", encoding="utf-8") as response_file:
         json.dump(raw_responses, response_file, ensure_ascii=False, indent=2)
 
+    participants = fetch_api("/api/participants/")
+    responded_tokens = {response["token"] for response in raw_responses}
+    responses = list(raw_responses)
+    responses.extend(
+        {
+            "token": participant["token"],
+            "label": participant.get("label"),
+            "status": "not-started",
+            "last_page": None,
+            "submitted_at": None,
+            "answers": {},
+        }
+        for participant in participants
+        if participant["token"] not in responded_tokens
+    )
     responses = [
         response
-        for response in raw_responses
+        for response in responses
         if re.match(r"^p\d{2}", str(response.get("label") or ""))
     ]
     if course_keys:
@@ -91,7 +106,6 @@ def prepare_live_responses(
             for response in responses
         ]
 
-    participants = fetch_api("/api/participants/")
     if min_completed_cases > 0:
         full_survey_stats = summarize_participants(responses, participants, survey_path)
         responses = [

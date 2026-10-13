@@ -319,6 +319,12 @@ Each fetch saves the complete, unfiltered `/api/responses` JSON to
 `eval/final-assesment/responce-YY-MM-DD-hh-mm.json`, using local time and a
 24-hour clock. Fetches in the same minute overwrite that minute's file. The folder
 is ignored by Git; these snapshots include participant tokens and are sensitive.
+Live analysis also includes participants whose labels match `^p\d{2}` but who
+have no response, identified by participant token. Their analysis records have
+status `not-started`, empty answers, and no saved timestamp or last page; these
+missing values are displayed as blank cells in the participant table. These
+records are not added to raw snapshots. They are excluded when
+`min_completed_cases` is greater than zero.
 Set `n_cases` in the fetch cell (initially `10`) to analyze only the first N case
 pages in each participant group's survey order. All matching participants remain
 included; progress counts and rankings use only answers from those pages.

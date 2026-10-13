@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 from datetime import datetime
@@ -13,8 +14,8 @@ import pytest
 @pytest.mark.parametrize("min_completed_cases", [-1, 0, 2, 3, 4])
 @pytest.mark.parametrize("initial_responses", [
     [],
-    [{"label": "p01", "answers": {"q1": "Odgovor čćš"}},
-     {"label": "test01", "answers": {"q1": "synthetic"}}],
+    [{"token": "one", "label": "p01", "answers": {"q1": "Odgovor čćš"}},
+     {"token": "test", "label": "test01", "answers": {"q1": "synthetic"}}],
 ])
 def test_fetch_saves_raw_responses_and_overwrites_same_minute(
     tmp_path: Path, monkeypatch, initial_responses: list[dict],
@@ -36,7 +37,7 @@ def test_fetch_saves_raw_responses_and_overwrites_same_minute(
     )
     monkeypatch.chdir(analysis_dir)
     raw_responses = initial_responses
-    participants = [{"label": "p01"}]
+    participants = [{"token": "excluded", "label": "test-participant"}]
     calls = []
     limited_responses = []
     completed_cases = {"p01": 2, "p02": 3}
@@ -96,7 +97,7 @@ def test_fetch_saves_raw_responses_and_overwrites_same_minute(
         assert calls == []
         return
 
-    for data in [initial_responses, [{"label": "p02", "answers": {"q2": "updated"}}]]:
+    for data in [initial_responses, [{"token": "two", "label": "p02", "answers": {"q2": "updated"}}]]:
         raw_responses = data
         exec(compile(source, "live-analisys.ipynb:fetch", "exec"), namespace)
         output_dir = tmp_path / "eval" / "final-assesment"
@@ -133,6 +134,7 @@ def test_prepare_live_responses_filters_answers_by_course(
         encoding="utf-8",
     )
     raw_responses = [{
+        "token": "one",
         "label": "p01",
         "answers": {
             "TC-001__0__group-01__ranking": {"q1": "a"},
@@ -151,6 +153,7 @@ def test_prepare_live_responses_filters_answers_by_course(
     )
 
     assert responses == [{
+        "token": "one",
         "label": "p01",
         "answers": {"TC-001__0__group-01__ranking": {"q1": "a"}},
     }]
@@ -170,6 +173,7 @@ def test_prepare_live_responses_empty_course_filter_keeps_all_answers(
         lambda responses, survey_path, n_cases, *, min_cases: responses,
     )
     raw_responses = [{
+        "token": "one",
         "label": "p01",
         "answers": {"TC-001__0__group-01__ranking": {"q1": "a"}},
     }]
@@ -185,6 +189,127 @@ def test_prepare_live_responses_empty_course_filter_keeps_all_answers(
     )
 
     assert responses == raw_responses
+
+
+@pytest.mark.parametrize("has_response", [False, True])
+@pytest.mark.parametrize("min_completed_cases", [0, 1])
+def test_prepare_live_responses_includes_not_started_participants(
+    tmp_path: Path, monkeypatch, has_response: bool, min_completed_cases: int,
+) -> None:
+    helpers = run_path(
+        str(Path(__file__).parents[1] / "suvrey-analisys" / "survey_responce.py")
+    )
+    prepare = helpers["prepare_live_responses"]
+    question = "TC-001__0__group-01__ranking"
+    survey_path = tmp_path / "survey.json"
+    survey_path.write_text(json.dumps({"pages": [{"elements": [{
+        "type": "matrixdropdown", "name": question,
+        "rows": [{"value": "q1", "text": "Accuracy"}],
+    }]}]}), encoding="utf-8")
+    cases_path = tmp_path / "cases.yml"
+    cases_path.write_text(
+        "- case_key: TC-001\n  course_key: course-a\n", encoding="utf-8",
+    )
+    participants = [
+        {"token": "started", "label": "p01", "variables": {"group": 1}},
+        {"token": "waiting", "label": "p01", "variables": {"group": 2}},
+        {"token": "suffix", "label": "p02-extra"},
+        {"token": "excluded", "label": "test01"},
+        {"token": "short", "label": "p1"},
+        {"token": "unlabelled", "label": None},
+    ]
+    raw_responses = [{
+        "token": "started", "label": "p01", "status": "completed",
+        "last_page": 1, "submitted_at": "2026-10-13T12:00:00",
+        "answers": {question: {"q1": {"best": "a", "worst": "c"}}},
+    }] if has_response else []
+    monkeypatch.setitem(
+        prepare.__globals__, "fetch_api",
+        lambda path: raw_responses if path == "/api/responses" else participants,
+    )
+
+    responses, returned_participants = prepare(
+        survey_path, cases_path, tmp_path / "snapshots",
+        n_cases_min=1, n_cases_max=1, min_completed_cases=min_completed_cases,
+        course_keys=["course-a"],
+    )
+
+    expected = list(raw_responses)
+    if min_completed_cases == 0:
+        expected.extend({
+            "token": participant["token"], "label": participant["label"],
+            "status": "not-started", "last_page": None, "submitted_at": None,
+            "answers": {},
+        } for participant in participants[:3]
+          if not has_response or participant["token"] != "started")
+    assert responses == expected
+    assert returned_participants == participants
+    snapshot, = (tmp_path / "snapshots").glob("*.json")
+    assert json.loads(snapshot.read_text(encoding="utf-8")) == raw_responses
+    summaries = helpers["summarize_participants"](responses, participants, survey_path)
+    for response, summary in zip(responses, summaries):
+        if response["status"] == "not-started":
+            assert summary == {
+                "participant": response["label"],
+                "group": next(
+                    participant.get("variables", {}).get("group")
+                    for participant in participants
+                    if participant["token"] == response["token"]
+                ),
+                "status": "not-started", "last_page": None, "saved_at": None,
+                "completed_cases": 0, "incomplete_cases": 0, "complete_rankings": 0,
+            }
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_participant_table_displays_missing_values_as_blanks(empty: bool) -> None:
+    notebook_path = Path(__file__).parents[1] / "suvrey-analisys" / "live-analisys.ipynb"
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+    source = next(
+        "".join(cell["source"]) for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+        and "".join(cell["source"]).startswith("participant_stats =")
+    )
+    summaries = [] if empty else [
+        {
+            "participant": "p02", "group": None, "status": "not-started",
+            "saved_at": None, "last_page": None, "completed_cases": 0,
+            "incomplete_cases": 0, "complete_rankings": 0,
+        },
+        {
+            "participant": "p01", "group": 1, "status": "draft",
+            "saved_at": "2026-10-13T12:00:00", "last_page": 0,
+            "completed_cases": 1, "incomplete_cases": 0, "complete_rankings": 6,
+        },
+    ]
+    namespace = {
+        "pd": pd, "responses": [], "participants": [],
+        "summarize_participants": lambda responses, participants: summaries,
+        "display": lambda value: None, "Markdown": str,
+    }
+    tree = ast.parse(source)
+    result = tree.body.pop()
+    assert isinstance(result, ast.Expr)
+    exec(compile(tree, "live-analisys.ipynb:participants", "exec"), namespace)
+    table = eval(
+        compile(ast.Expression(result.value), "live-analisys.ipynb:participants", "eval"),
+        namespace,
+    )
+
+    assert not table.isna().any().any()
+    for rendered in (table.to_html(), table.to_string()):
+        assert "NaN" not in rendered
+        assert "<NA>" not in rendered
+        assert "&lt;NA&gt;" not in rendered
+    if empty:
+        assert table.empty
+    else:
+        assert table["participant"].tolist() == ["p01", "p02"]
+        assert table["saved_at"].tolist() == ["2026-10-13 14:00", ""]
+        assert table["last_page"].tolist() == [0, ""]
+        assert table["group"].tolist() == [1, ""]
+        assert table["completed_cases"].tolist() == [1, 0]
+        assert pd.isna(namespace["participant_stats"].iloc[0]["last_page"])
 
 
 @pytest.fixture
