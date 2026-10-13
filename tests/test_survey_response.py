@@ -287,6 +287,22 @@ def test_overall_ranking_pools_category_triplets(survey_path: Path) -> None:
     assert _module["rank_overall"]({}, _module["rank_plackett_luce"]) == []
 
 
+def test_plackett_luce_scores_use_percentage_scale() -> None:
+    triplets = [
+        ("model-a", "model-b", "model-c"),
+        ("model-b", "model-c", "model-a"),
+        ("model-c", "model-a", "model-b"),
+    ]
+
+    results = _module["rank_plackett_luce"](triplets)
+
+    assert {row["model"]: row["score"] for row in results} == {
+        "model-a": pytest.approx(100 / 3),
+        "model-b": pytest.approx(100 / 3),
+        "model-c": pytest.approx(100 / 3),
+    }
+
+
 @pytest.fixture
 def grouped_survey_path(tmp_path: Path) -> Path:
     path = tmp_path / "grouped-survey.json"

@@ -512,12 +512,13 @@ def rank_borda_stratified_case(observations: list[RankingObservation]) -> Rankin
 
 
 def rank_plackett_luce(triplets: list[Triplet]) -> RankingRows:
+    """Rank models by normalized Plackett-Luce strength expressed as percentages."""
     counts = Counter(model for triplet in triplets for model in triplet)
     if not counts:
         return []
     scores = _fit_plackett_luce(triplets, set(counts))
     return _ranking_rows(
-        {model: round(score, 6) for model, score in scores.items()},
+        {model: round(score * 100, 6) for model, score in scores.items()},
         counts,
     )
 
